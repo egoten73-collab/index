@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Distinte di versamento</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#1d2733;--mut:#5d6b7a;--br:#d5dbe2;--pri:#0b6e8a;--pri-tx:#fff;--ok:#1b7f4b;--warn:#a8590b;--err:#b3261e;--chip:#e8eef3}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#12171c;--card:#1b222a;--tx:#e8edf2;--mut:#9aa8b6;--br:#33404d;--pri:#3ba7c6;--pri-tx:#06222b;--ok:#4cc38a;--warn:#e8a15a;--err:#f2867f;--chip:#2a343e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:var(--pri);color:var(--pri-tx);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+header h1{font-size:1.1rem;margin:0}
+main{max-width:640px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:14px}
+.card h2{font-size:1rem;margin:0 0 10px}
+label{display:block;font-size:.85rem;color:var(--mut);margin:10px 0 4px}
+input[type=text],input[type=date],input[type=password],input[type=url],input:not([type]),select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--br);border-radius:8px;padding:10px}
+textarea{min-height:60px}
+button{font:inherit;border-radius:10px;border:1px solid var(--br);background:var(--card);color:var(--tx);padding:11px 14px;cursor:pointer}
+button.pri{background:var(--pri);color:var(--pri-tx);border-color:var(--pri);font-weight:600}
+button.big{width:100%;padding:16px;font-size:1.05rem;margin-bottom:10px}
+button:disabled{opacity:.5}
+header button{background:transparent;color:inherit;border-color:rgba(255,255,255,.5);padding:6px 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{background:var(--chip);border:1px solid var(--br);border-radius:999px;padding:5px 11px;font-size:.9rem}
+.chip.on{background:var(--pri);color:var(--pri-tx);border-color:var(--pri)}
+.msg{padding:10px 12px;border-radius:8px;margin:8px 0;font-size:.92rem;border:1px solid var(--br)}
+.msg.warn{color:var(--warn);border-color:var(--warn)}
+.msg.err{color:var(--err);border-color:var(--err)}
+.msg.ok{color:var(--ok);border-color:var(--ok)}
+.voce{border:1px dashed var(--br);border-radius:10px;padding:10px;margin-top:10px}
+.mut{color:var(--mut);font-size:.85rem}
+.hide{display:none!important}
+.mesi{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.mesi button{padding:8px 0}
+.mesi button.on{background:var(--pri);color:var(--pri-tx);border-color:var(--pri)}
+.anno{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:6px}
+img.anteprima{max-width:100%;max-height:260px;border-radius:8px;display:block;margin:8px auto}
+details{margin-top:8px}
+pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--chip);padding:8px;border-radius:8px;max-height:220px;overflow:auto}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--br);border-top-color:var(--pri);border-radius:50%;animation:r 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes r{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header><h1>Distinte di versamento</h1><button id="btnImpost" type="button" aria-label="Impostazioni" title="Impostazioni">⚙</button></header>
+<main id="app"></main>
+
+<script id="parser-js">
+/* Parser delle distinte di versamento (testo gia' estratto da PDF o OCR).
+   Nessuna dipendenza: funziona nel browser (window.Parser) e in Node (module.exports). */
+(function (root) {
+  'use strict';
+
+  var MESI_NOMI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio',
+    'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+  var MESI_ABBR = { gen: 1, feb: 2, mar: 3, apr: 4, mag: 5, giu: 6, lug: 7, ago: 8, set: 9, sett: 9, ott: 10, nov: 11, dic: 12 };
+  var MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
+  function senzaAccenti(s) {
+    return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+
+  // ------------------------------------------------------------------ importi
+  function parseImporto(s) {
+    s = String(s).replace(/[^\d.,]/g, '');
+    if (!s) return NaN;
+    var uc = s.lastIndexOf(','), up = s.lastIndexOf('.');
+    var sep = Math.max(uc, up);
+    if (sep >= 0 && s.length - sep - 1 <= 2 && s.length - sep - 1 >= 1) {
+      var intero = s.slice(0, sep).replace(/[.,]/g, '');
+      var dec = s.slice(sep + 1);
+      return parseFloat(intero + '.' + dec);
+    }
+    return parseFloat(s.replace(/[.,]/g, ''));
+  }
+
+  var NUM = '(\\d{1,3}(?:[.\\s]\\d{3})+(?:,\\d{1,2})?|\\d+(?:[,.]\\d{1,2})?)';
+
+  function trovaImporti(testo) {
+    var t = String(testo);
+    var cand = [];
+    function aggiungi(valStr, peso, pos) {
+      var v = parseImporto(valStr.replace(/\s/g, ''));
+      if (!isFinite(v) || v <= 0 || v > 1e6) return;
+      cand.push({ valore: Math.round(v * 100) / 100, peso: peso, pos: pos });
+    }
+    var m, re;
+    // importo / totale con etichetta
+    re = new RegExp('(?:importo|totale|somma|ammontare|versato|versamento di)[^\\d\\n]{0,25}?' + NUM, 'gi');
+    while ((m = re.exec(t))) aggiungi(m[1], 3, m.index);
+    // euro prima o dopo
+    re = new RegExp('(?:€|eur(?:o)?\\b\\.?)\\s*' + NUM, 'gi');
+    while ((m = re.exec(t))) aggiungi(m[1], 2, m.index);
+    re = new RegExp(NUM + '\\s*(?:€|eur(?:o)?\\b)', 'gi');
+    while ((m = re.exec(t))) aggiungi(m[1], 2, m.index);
+    // numeri con due decimali (fallback)
+    if (!cand.length) {
+      re = /\b(\d{1,3}(?:\.\d{3})*,\d{2}|\d+[,.]\d{2})\b/g;
+      while ((m = re.exec(t))) aggiungi(m[1], 1, m.index);
+    }
+    if (!cand.length) return { totale: null, candidati: [] };
+    var visti = {}, lista = [];
+    cand.sort(function (a, b) { return b.peso - a.peso || a.pos - b.pos; });
+    cand.forEach(function (c) { if (!visti[c.valore]) { visti[c.valore] = 1; lista.push(c.valore); } });
+    return { totale: cand[0].valore, candidati: lista };
+  }
+
+  // ------------------------------------------------------------------ data
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function dataValida(g, m, a) {
+    if (m < 1 || m > 12 || g < 1 || g > 31 || a < 2000 || a > 2100) return null;
+    var d = new Date(Date.UTC(a, m - 1, g));
+    if (d.getUTCMonth() !== m - 1) return null;
+    return a + '-' + pad(m) + '-' + pad(g);
+  }
+
+  function trovaData(testo) {
+    var t = senzaAccenti(String(testo)).toLowerCase();
+    var m, re, trovate = [];
+    re = /\b(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{4}|\d{2})\b/g;
+    while ((m = re.exec(t))) {
+      var a = +m[3]; if (a < 100) a += 2000;
+      var iso = dataValida(+m[1], +m[2], a);
+      if (iso) trovate.push({ iso: iso, pos: m.index, etic: /data|esegu|valuta|operazione|bonifico/.test(t.slice(Math.max(0, m.index - 30), m.index)) });
+    }
+    re = new RegExp('(?<![\\d,.])\\b(\\d{1,2})\\s+(' + MESI_NOMI.map(senzaAccenti).join('|') + ')\\s+(\\d{4})\\b', 'g');
+    while ((m = re.exec(t))) {
+      var iso2 = dataValida(+m[1], MESI_NOMI.indexOf(m[2]) + 1, +m[3]);
+      if (iso2) trovate.push({ iso: iso2, pos: m.index, etic: false });
+    }
+    if (!trovate.length) return null;
+    var et = trovate.filter(function (x) { return x.etic; });
+    return (et[0] || trovate[0]).iso;
+  }
+
+  function togliDate(t) {
+    return t.replace(/\b\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*(?:\d{4}|\d{2})\b/g, ' ')
+      .replace(new RegExp('(?<![\\d,.])\\b\\d{1,2}\\s+(?:' + MESI_NOMI.map(senzaAccenti).join('|') + ')\\s+\\d{4}\\b', 'gi'), ' ');
+  }
+
+  // ------------------------------------------------------------------ causale / ordinante / interni
+  function trovaCausale(testo) {
+    var t = String(testo);
+    var m = /causale(?:\s+del\s+(?:versamento|bonifico|pagamento))?\s*[:\-]?\s*([^\n]*(?:\n(?!\s*(?:iban|data|importo|beneficiario|ordinante|cro|trn|commission|spese|valuta|totale)\b)[^\n]+){0,2})/i.exec(t);
+    if (m && m[1].trim()) return m[1].replace(/\s+/g, ' ').trim();
+    m = /(?:descrizione|motivo|oggetto)\s*[:\-]?\s*([^\n]+)/i.exec(t);
+    if (m && m[1].trim()) return m[1].replace(/\s+/g, ' ').trim();
+    return '';
+  }
+
+  function trovaOrdinante(testo) {
+    var m = /(?:ordinante|disponente|eseguito\s+da|intestatario(?:\s+del\s+conto)?|versante|nome\s+(?:e\s+cognome\s+)?del\s+versante|da\s*:)\s*[:\-]?\s*([^\n]{3,70})/i.exec(String(testo));
+    return m ? m[1].replace(/\s+/g, ' ').trim() : '';
+  }
+
+  function trovaInterni(testo) {
+    var t = senzaAccenti(String(testo)).toLowerCase();
+    var out = [], m;
+    var re = /\b(?:int(?:erno|erni)?|villino|vill)\b\.?\s*(?:n\s*[°.o]?\s*)?(\d{1,3})((?:\s*(?:e|ed|,|\/|&|-)\s*\d{1,3}\b(?!\s*[\/.]\s*\d))*)/g;
+    while ((m = re.exec(t))) {
+      out.push(String(+m[1]));
+      var resto = m[2] || '', n;
+      var r2 = /\d{1,3}/g;
+      while ((n = r2.exec(resto))) out.push(String(+n[0]));
+    }
+    var visti = {};
+    return out.filter(function (x) { if (visti[x]) return false; visti[x] = 1; return true; });
+  }
+
+  // ------------------------------------------------------------------ mesi
+  var RE_MESE = '(' + MESI_NOMI.map(senzaAccenti).join('|') + '|sett|gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic)';
+
+  function meseNum(tok) {
+    var i = MESI_NOMI.map(senzaAccenti).indexOf(tok);
+    return i >= 0 ? i + 1 : MESI_ABBR[tok];
+  }
+
+  function trovaMesi(testo, annoDefault) {
+    var t = senzaAccenti(String(testo)).toLowerCase();
+    t = togliDate(t);
+    var risultato = {};
+    function add(y, m) { risultato[y + '-' + pad(m)] = 1; }
+
+    // trimestri / semestri
+    var m, re = /\b(1|2|3|4|primo|secondo|terzo|quarto|i{1,3}|iv)\s*[°ºª]?\s*(trimestre|trim\b\.?|semestre|sem\b\.?)\s*(?:del\s+|di\s+)?(20\d{2})?/g;
+    var mapN = { '1': 1, primo: 1, i: 1, '2': 2, secondo: 2, ii: 2, '3': 3, terzo: 3, iii: 3, '4': 4, quarto: 4, iv: 4 };
+    while ((m = re.exec(t))) {
+      var n = mapN[m[1]], y = m[3] ? +m[3] : annoDefault;
+      var sem = /^sem/.test(m[2]);
+      var da = sem ? (n - 1) * 6 + 1 : (n - 1) * 3 + 1, len = sem ? 6 : 3;
+      if (sem && n > 2) continue;
+      for (var k = 0; k < len; k++) add(y, da + k);
+    }
+    t = t.replace(re, ' ');
+
+    // mm/aaaa
+    re = /\b(0?[1-9]|1[0-2])\s*[\/\-]\s*(20\d{2})\b/g;
+    while ((m = re.exec(t))) add(+m[2], +m[1]);
+    t = t.replace(re, ' ');
+
+    // nomi dei mesi, con intervalli e liste
+    var toks = [];
+    var reTok = new RegExp('\\b' + RE_MESE + '\\b\\.?|\\b(20\\d{2})\\b', 'g');
+    while ((m = reTok.exec(t))) {
+      if (m[2]) toks.push({ tipo: 'A', anno: +m[2], ini: m.index, fine: reTok.lastIndex });
+      else toks.push({ tipo: 'M', mese: meseNum(m[1]), abbr: m[1].length <= 4 && m[1] !== 'maggio', ini: m.index, fine: reTok.lastIndex, anno: null });
+    }
+    // anno subito dopo il mese
+    var mesiTok = [];
+    for (var i = 0; i < toks.length; i++) {
+      if (toks[i].tipo !== 'M') continue;
+      var nx = toks[i + 1];
+      if (nx && nx.tipo === 'A' && /^[\s\/,\-']*$/.test(t.slice(toks[i].fine, nx.ini))) {
+        toks[i].anno = nx.anno; toks[i].fineTot = nx.fine; nx.usato = true;
+      } else toks[i].fineTot = toks[i].fine;
+      mesiTok.push(toks[i]);
+    }
+    // relazioni tra mesi consecutivi
+    var gruppi = [], cur = null;
+    for (var j = 0; j < mesiTok.length; j++) {
+      var a = mesiTok[j], rel = null;
+      if (j > 0) {
+        var gap = t.slice(mesiTok[j - 1].fineTot, a.ini);
+        if (/^\s*(?:-|–|—|\/|a|al|fino\s+a|fino\s+al|ad)\s*$/.test(gap)) rel = 'range';
+        else if (/^\s*(?:,|e|ed|&|\+)?\s*$/.test(gap)) rel = 'lista';
+      }
+      if (!rel || !cur) { cur = []; gruppi.push(cur); }
+      a.rel = rel; cur.push(a);
+    }
+    gruppi.forEach(function (g) {
+      // le abbreviazioni da sole (es. "mar", "set") sono troppo ambigue: servono anno o un legame con altri mesi
+      if (g.length === 1 && g[0].abbr && !g[0].anno) return;
+      // anno: propagato all'indietro dal primo mese che ce l'ha
+      var ultimo = null;
+      for (var x = g.length - 1; x >= 0; x--) {
+        if (g[x].anno) ultimo = g[x].anno;
+        else if (ultimo) g[x].anno = ultimo;
+      }
+      // intervalli a cavallo d'anno quando l'anno e' solo in fondo
+      for (var y2 = g.length - 2; y2 >= 0; y2--) {
+        if (g[y2 + 1].rel === 'range' && g[y2].mese > g[y2 + 1].mese && g[y2 + 1].anno &&
+            g[y2].anno === g[y2 + 1].anno && !g[y2].espl) g[y2].anno = g[y2 + 1].anno - 1;
+      }
+      g.forEach(function (x) { if (!x.anno) x.anno = annoDefault; });
+      for (var z = 0; z < g.length; z++) {
+        if (g[z].rel === 'range') {
+          var p = g[z - 1], q = g[z];
+          var yy = p.anno, mm = p.mese, guardia = 0;
+          while (guardia++ < 36 && (yy < q.anno || (yy === q.anno && mm <= q.mese))) {
+            add(yy, mm); mm++; if (mm > 12) { mm = 1; yy++; }
+          }
+        } else add(g[z].anno, g[z].mese);
+      }
+    });
+    return Object.keys(risultato).sort();
+  }
+
+  // ------------------------------------------------------------------ categorie
+  function indovinaCategoria(testo) {
+    var t = senzaAccenti(String(testo)).toLowerCase();
+    if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) return 'Spese extra';
+    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) return 'Utenze';
+    if (/quota|ordinari|condomin|\brata\b|annuale|associativ|spese\s+general/.test(t)) return 'Quota ordinaria';
+    return 'Altro';
+  }
+
+  function categoriaDaChunk(chunk) {
+    var t = senzaAccenti(String(chunk)).toLowerCase();
+    var isExtra = /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion/.test(t);
+    var isUtenze = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t);
+    if (isExtra && !isUtenze) return 'Spese extra';
+    if (isUtenze && !isExtra) return 'Utenze';
+    return indovinaCategoria(chunk);
+  }
+
+  function haAcconto(testo) {
+    return /acconto|anticipo|caparra|\bacc\.|saldo\s+parziale/i.test(String(testo));
+  }
+
+  // ------------------------------------------------------------------ voci multiple
+  function trovaVoci(causale, totale, annoDefault) {
+    var globali = trovaMesi(causale, annoDefault);
+    var base = {
+      categoria: indovinaCategoria(causale), importo: totale, mesi: globali,
+      acconto: haAcconto(causale), note: ''
+    };
+    if (!causale || !totale) return [base];
+
+    var pezzi = causale.split(/\s*(?:\+|;|\n|\s&\s|\se\s)\s*/i).filter(function (x) { return x.trim(); });
+    // unisce i pezzi senza importo al pezzo successivo
+    var chunks = [], pendente = '';
+    pezzi.forEach(function (p) {
+      var ha = trovaImporti(p).candidati.length > 0 && /(€|eur|\d[,.]\d{2})/i.test(p);
+      if (ha) { chunks.push((pendente + ' ' + p).trim()); pendente = ''; } else pendente += ' ' + p;
+    });
+    if (chunks.length < 2) return [base];
+    var voci = chunks.map(function (c) {
+      var senzaInt = c.replace(/\b(?:int(?:erno)?|villino|vill)\b\.?\s*\d+/gi, ' ');
+      var imp = trovaImporti(senzaInt);
+      var mesi = trovaMesi(c, annoDefault);
+      return {
+        categoria: categoriaDaChunk(c), importo: imp.totale, mesi: mesi.length ? mesi : globali,
+        acconto: haAcconto(c), note: ''
+      };
+    });
+    var somma = voci.reduce(function (s, v) { return s + (v.importo || 0); }, 0);
+    if (Math.abs(somma - totale) > 0.011) return [base];
+    return voci;
+  }
+
+  // ------------------------------------------------------------------ soci
+  function internoList(s) {
+    return (String(s || '').match(/\d+/g) || []).map(function (x) { return String(+x); });
+  }
+
+  function normNome(s) {
+    var t = senzaAccenti(String(s)).toUpperCase().replace(/\bC\/O\b.*$/, ' ');
+    t = t.replace(/['`´’]/g, '').replace(/[^A-Z\s]/g, ' ');
+    return t.split(/\s+/).filter(function (x) { return x.length >= 2; });
+  }
+
+  function abbinaSocio(interniTrovati, testoNome, testoCompleto, soci) {
+    var res = { socio: null, candidati: [], metodo: null, avvisi: [] };
+    if (!soci || !soci.length) { res.avvisi.push('Elenco soci non disponibile: scrivi nome e interno a mano.'); return res; }
+
+    // 1) per interno
+    if (interniTrovati.length) {
+      var trovati = [];
+      soci.forEach(function (s) {
+        var li = internoList(s.interno);
+        if (interniTrovati.some(function (x) { return li.indexOf(x) >= 0; })) trovati.push(s);
+      });
+      if (trovati.length === 1) {
+        res.socio = trovati[0]; res.metodo = 'interno';
+      } else if (trovati.length > 1) {
+        res.candidati = trovati;
+        res.avvisi.push('Gli interni indicati (' + interniTrovati.join(', ') + ') corrispondono a piu\' soci: scegli quello giusto.');
+      } else {
+        res.avvisi.push('Interno ' + interniTrovati.join(', ') + ' non presente nell\'elenco soci.');
+      }
+    }
+
+    // 2) per nome
+    function punteggi(testo) {
+      var tok = {};
+      normNome(testo).forEach(function (x) { tok[x] = 1; });
+      var out = [];
+      soci.forEach(function (s) {
+        var nt = normNome(s.nome);
+        if (nt.length < 2) return;
+        var hit = nt.filter(function (x) { return tok[x]; }).length;
+        out.push({ socio: s, score: hit / nt.length, hit: hit });
+      });
+      return out;
+    }
+    var perNome = [];
+    [testoNome, testoCompleto].some(function (txt) {
+      if (!txt) return false;
+      var p = punteggi(txt).filter(function (x) { return x.score === 1 && x.hit >= 2; });
+      if (p.length) { perNome = p.map(function (x) { return x.socio; }); return true; }
+      return false;
+    });
+    if (!perNome.length) {
+      var parz = punteggi(testoNome || testoCompleto || '').filter(function (x) { return x.score >= 0.5 && x.hit >= 1; })
+        .sort(function (a, b) { return b.score - a.score; }).slice(0, 5);
+      if (!res.socio && !res.candidati.length) res.candidati = parz.map(function (x) { return x.socio; });
+    }
+
+    if (res.socio) {
+      if (perNome.length && perNome.indexOf(res.socio) < 0 && perNome.length === 1) {
+        res.avvisi.push('Attenzione: l\'interno indica ' + res.socio.nome + ' ma il nome sulla distinta sembra ' + perNome[0].nome + '. Controlla.');
+      }
+    } else if (!res.candidati.length || perNome.length) {
+      if (perNome.length === 1) { res.socio = perNome[0]; res.metodo = 'nome'; }
+      else if (perNome.length > 1) {
+        res.candidati = perNome;
+        res.avvisi.push('Piu\' soci con lo stesso nome: scegli quello giusto (conviene scrivere l\'interno nella causale).');
+      }
+    }
+    return res;
+  }
+
+  // ------------------------------------------------------------------ tutto insieme
+  function analizza(testo, soci, opzioni) {
+    opzioni = opzioni || {};
+    testo = String(testo || '');
+    var data = trovaData(testo);
+    var anno = data ? +data.slice(0, 4) : (opzioni.annoCorrente || new Date().getFullYear());
+    var imp = trovaImporti(testo);
+    var causale = trovaCausale(testo);
+    var ordinante = trovaOrdinante(testo);
+    var interni = trovaInterni(causale || '');
+    if (!interni.length) interni = trovaInterni(testo);
+    var nomeTesto = ordinante || '';
+    var senzaBenef = testo.split('\n').filter(function (l) { return !/beneficiario|a favore di|golfo dei fenici|iban|c\/c/i.test(l); }).join('\n');
+    var socio = (soci && soci.length) ? abbinaSocio(interni, nomeTesto, senzaBenef, soci) : { socio: null, candidati: [], avvisi: [], metodo: null };
+    var voci = trovaVoci(causale || testo, imp.totale, anno);
+    var avvisi = socio.avvisi.slice();
+    if (!imp.totale) avvisi.push('Importo non riconosciuto: scrivilo a mano.');
+    if (!data) avvisi.push('Data non riconosciuta: scegli la data del versamento.');
+    if (!causale) avvisi.push('Causale non trovata: controlla mesi e tipo di versamento.');
+    return {
+      data: data, totale: imp.totale, candidatiImporto: imp.candidati, causale: causale,
+      ordinante: ordinante, interni: interni, socio: socio.socio, candidatiSocio: socio.candidati,
+      metodo: socio.metodo, voci: voci, avvisi: avvisi, anno: anno
+    };
+  }
+
+  var API = {
+    parseImporto: parseImporto, trovaImporti: trovaImporti, trovaData: trovaData, trovaCausale: trovaCausale,
+    trovaOrdinante: trovaOrdinante, trovaInterni: trovaInterni, trovaMesi: trovaMesi,
+    indovinaCategoria: indovinaCategoria, haAcconto: haAcconto, trovaVoci: trovaVoci,
+    abbinaSocio: abbinaSocio, analizza: analizza, internoList: internoList, normNome: normNome,
+    MESI_NOMI: MESI_NOMI, MESI_BREVI: MESI_BREVI
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  else root.Parser = API;
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
+<script id="app-js">
+(function () {
+  'use strict';
+  var P = window.Parser;
+  var PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  var MAX_BYTE = 12 * 1024 * 1024;
+  var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'];
+
+  var app = document.getElementById('app');
+  var cfg = leggiCfg();
+  var socio = leggiSocio();   // {nome, interni:[...]} ricordato su questo telefono
+  var stato = null;           // dati in revisione
+
+  // ---------------------------------------------------------------- utilita'
+  function h(tag, attrs, figli) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      var v = attrs[k];
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.indexOf('on') === 0) el.addEventListener(k.slice(2), v);
+      else if (v === true) el.setAttribute(k, '');
+      else if (v !== false && v != null) el.setAttribute(k, v);
+    });
+    (figli || []).forEach(function (f) {
+      if (f == null) return;
+      el.appendChild(typeof f === 'string' ? document.createTextNode(f) : f);
+    });
+    return el;
+  }
+  function svuota(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+  function leggi(chiave) {
+    try { return JSON.parse(localStorage.getItem(chiave) || 'null'); } catch (e) { return null; }
+  }
+  function scrivi(chiave, val) {
+    try { if (val === null) localStorage.removeItem(chiave); else localStorage.setItem(chiave, JSON.stringify(val)); } catch (e) { /* ok */ }
+  }
+  function leggiCfg() { return leggi('distinte_cfg') || {}; }
+  function leggiSocio() {
+    var s = leggi('distinte_socio');
+    return s && s.nome && Array.isArray(s.interni) && s.interni.length ? s : null;
+  }
+  function euro(n) { return (isFinite(n) ? n : 0).toFixed(2).replace('.', ','); }
+  function numero(s) {
+    var v = P.parseImporto(String(s));
+    return isFinite(v) ? Math.round(v * 100) / 100 : NaN;
+  }
+  function testoInterni(lista) { return 'Int. ' + lista.join(' e '); }
+  function caricaScript(url) {
+    return new Promise(function (ok, ko) {
+      var s = document.createElement('script');
+      s.src = url; s.onload = ok; s.onerror = function () { ko(new Error('Non riesco a scaricare il lettore (serve internet).')); };
+      document.head.appendChild(s);
+    });
+  }
+  function msg(classe, testo) { return h('div', { class: 'msg ' + classe, text: testo }); }
+
+  // Il direttivo puo' mandare ai soci un link del tipo  pagina#u=<indirizzo>&c=<codice>
+  // che configura la pagina da sola (il frammento dopo # non viaggia mai verso nessun server).
+  function leggiLink() {
+    var fr = String(location.hash || '').replace(/^#/, '');
+    if (!fr) return;
+    var u = null, c = null;
+    fr.split('&').forEach(function (kv) {
+      var i = kv.indexOf('=');
+      if (i < 0) return;
+      var k = kv.slice(0, i), v = decodeURIComponent(kv.slice(i + 1));
+      if (k === 'u') u = v; else if (k === 'c') c = v;
+    });
+    if (u && c && /^https:\/\/script\.google\.com\//.test(u)) {
+      cfg = { url: u, token: c };
+      scrivi('distinte_cfg', cfg);
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ok */ }
+    }
+  }
+
+  // ---------------------------------------------------------------- rete
+  function chiama(payload) {
+    if (!cfg.url || !cfg.token) return Promise.reject(new Error('Pagina non ancora configurata: usa il link ricevuto dal direttivo.'));
+    payload.token = cfg.token;
+    return fetch(cfg.url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' })
+      .then(function (r) { return r.text(); })
+      .then(function (t) {
+        var j;
+        try { j = JSON.parse(t); } catch (e) { throw new Error('Risposta non valida dal server. Riprova tra poco o avvisa il direttivo.'); }
+        return j;
+      });
+  }
+
+  // ---------------------------------------------------------------- impostazioni (direttivo)
+  function vistaImpostazioni() {
+    svuota(app);
+    var url = h('input', { type: 'url', value: cfg.url || '', placeholder: 'https://script.google.com/macros/s/.../exec', autocomplete: 'off' });
+    var tok = h('input', { type: 'password', value: cfg.token || '', autocomplete: 'off' });
+    var esito = h('div');
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Collegamento (per il direttivo)' }),
+      h('p', { class: 'mut', text: 'I soci non devono compilare nulla: usano il link che ricevono dal direttivo.' }),
+      h('label', { text: 'Indirizzo del servizio (Apps Script)' }), url,
+      h('label', { text: 'Codice di accesso' }), tok,
+      esito,
+      h('div', { class: 'row', style: 'margin-top:12px' }, [
+        h('button', {
+          class: 'pri', type: 'button', text: 'Salva e verifica', onclick: function () {
+            cfg = { url: url.value.trim(), token: tok.value.trim() };
+            scrivi('distinte_cfg', cfg);
+            svuota(esito); esito.appendChild(msg('ok', 'Verifico…'));
+            chiama({ azione: 'cerca', q: '000' }).then(function (j) {
+              svuota(esito);
+              if (j.ok) { esito.appendChild(msg('ok', 'Collegamento riuscito.')); setTimeout(vistaInizio, 900); }
+              else esito.appendChild(msg('err', j.errore || 'Errore'));
+            }).catch(function (e) { svuota(esito); esito.appendChild(msg('err', e.message)); });
+          }
+        }),
+        h('button', { type: 'button', text: 'Indietro', onclick: vistaInizio })
+      ])
+    ]));
+  }
+
+  // ---------------------------------------------------------------- identificazione
+  function vistaIdentifica() {
+    svuota(app); stato = null;
+    var risultati = h('div', { class: 'chips', style: 'flex-direction:column;align-items:stretch' });
+    var esito = h('div');
+    var timer = null, seq = 0;
+    var inp = h('input', { type: 'text', placeholder: 'Il tuo cognome, nome o numero di interno', autocomplete: 'off', oninput: function () {
+      clearTimeout(timer);
+      var q = inp.value.trim();
+      svuota(esito);
+      if (!(q.replace(/\s/g, '').length >= 3 || /^\d{1,3}$/.test(q))) { svuota(risultati); return; }
+      timer = setTimeout(function () {
+        var mio = ++seq;
+        chiama({ azione: 'cerca', q: q }).then(function (j) {
+          if (mio !== seq) return;
+          svuota(risultati); svuota(esito);
+          if (!j.ok) { esito.appendChild(msg('err', j.errore || 'Errore')); return; }
+          if (!j.risultati.length) { esito.appendChild(msg('warn', 'Nessun socio trovato. Controlla come hai scritto il nome oppure prova con il numero di interno.')); return; }
+          j.risultati.forEach(function (r) {
+            risultati.appendChild(h('button', { type: 'button', class: 'chip', style: 'text-align:left;padding:12px', text: r.nome + ' — ' + testoInterni(r.interni) + (r.ex ? ' (ex intestatario)' : ''), onclick: function () {
+              socio = { nome: r.nome, interni: r.interni.slice() };
+              scrivi('distinte_socio', socio);
+              vistaInizio();
+            } }));
+          });
+        }).catch(function (e) { if (mio === seq) { svuota(esito); esito.appendChild(msg('err', e.message)); } });
+      }, 350);
+    } });
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Chi sei?' }),
+      h('p', { class: 'mut', text: 'Scrivi il tuo cognome o nome (almeno 3 lettere) oppure il numero del tuo interno, poi tocca il tuo nome nell\'elenco. Lo ricorderò su questo telefono.' }),
+      inp, esito, risultati
+    ]));
+  }
+
+  // ---------------------------------------------------------------- inizio
+  function vistaInizio() {
+    svuota(app); stato = null;
+    if (!cfg.url || !cfg.token) return vistaImpostazioni();
+    if (!socio) return vistaIdentifica();
+    var fCam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hide', onchange: function () { scelto(fCam.files[0]); } });
+    var fFile = h('input', { type: 'file', accept: 'image/*,application/pdf', class: 'hide', onchange: function () { scelto(fFile.files[0]); } });
+    app.appendChild(h('div', { class: 'card' }, [
+      h('p', { style: 'margin-top:0' }, [h('strong', { text: socio.nome }), ' — ' + testoInterni(socio.interni)]),
+      h('button', { type: 'button', text: 'Non sono io', onclick: function () { socio = null; scrivi('distinte_socio', null); vistaIdentifica(); } })
+    ]));
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Carica la distinta di versamento' }),
+      h('button', { class: 'pri big', type: 'button', text: '📷 Scatta una foto', onclick: function () { fCam.click(); } }),
+      h('button', { class: 'big', type: 'button', text: '📄 Scegli un file (PDF o foto)', onclick: function () { fFile.click(); } }),
+      fCam, fFile,
+      h('p', { class: 'mut', text: 'La lettura avviene sul tuo telefono. Il file arriva solo all\'archivio dell\'associazione. Controlla i dati prima di inviare e conserva la tua distinta.' })
+    ]));
+  }
+
+  // ---------------------------------------------------------------- lettura file
+  function scelto(file) {
+    if (!file) return;
+    if (file.size > MAX_BYTE) { alert('File troppo grande (massimo 12 MB).'); return; }
+    var info = h('div', { class: 'card' }, [h('p', {}, [h('span', { class: 'spin' }), 'Sto leggendo la distinta…'])]);
+    var barra = h('p', { class: 'mut', text: '' });
+    info.appendChild(barra);
+    svuota(app); app.appendChild(info);
+    leggiFile(file, function (t) { barra.textContent = t; }).then(function (r) {
+      elabora(r.testo, r.fileInfo, r.anteprimaUrl);
+    }).catch(function (e) {
+      svuota(app);
+      app.appendChild(h('div', { class: 'card' }, [
+        msg('warn', 'Non sono riuscito a leggere automaticamente il file (' + e.message + '). Puoi comunque compilare i dati a mano.'),
+        h('button', { class: 'pri', type: 'button', text: 'Compila a mano', onclick: function () { preparaInvio(file).then(function (fi) { elabora('', fi.fileInfo, fi.anteprimaUrl); }); } }),
+        h('button', { type: 'button', text: 'Annulla', onclick: vistaInizio })
+      ]));
+    });
+  }
+
+  function leggiComeBase64(blob) {
+    return new Promise(function (ok, ko) {
+      var fr = new FileReader();
+      fr.onload = function () { ok(String(fr.result).split(',')[1] || ''); };
+      fr.onerror = function () { ko(new Error('lettura file')); };
+      fr.readAsDataURL(blob);
+    });
+  }
+
+  function caricaImmagine(file) {
+    return new Promise(function (ok, ko) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { ok({ img: img, url: url }); };
+      img.onerror = function () { ko(new Error('immagine non leggibile')); };
+      img.src = url;
+    });
+  }
+
+  function disegna(img, latoMax, grigio) {
+    var w = img.naturalWidth || img.width, hh = img.naturalHeight || img.height;
+    var sc = latoMax / Math.max(w, hh);
+    var c = document.createElement('canvas');
+    c.width = Math.round(w * sc); c.height = Math.round(hh * sc);
+    var ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    if (grigio) {
+      var d = ctx.getImageData(0, 0, c.width, c.height), p = d.data, min = 255, max = 0, i, g;
+      for (i = 0; i < p.length; i += 4) { g = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]; p[i] = g; if (g < min) min = g; if (g > max) max = g; }
+      var range = Math.max(1, max - min);
+      for (i = 0; i < p.length; i += 4) { g = (p[i] - min) * 255 / range; p[i] = p[i + 1] = p[i + 2] = g; }
+      ctx.putImageData(d, 0, 0);
+    }
+    return c;
+  }
+
+  // prepara il file da inviare (immagini compresse, PDF cosi' com'e')
+  function preparaInvio(file) {
+    if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+      return leggiComeBase64(file).then(function (b64) {
+        return { fileInfo: { nome: file.name || 'distinta.pdf', mime: 'application/pdf', base64: b64 }, anteprimaUrl: null };
+      });
+    }
+    return caricaImmagine(file).then(function (r) {
+      var c = disegna(r.img, Math.min(1800, Math.max(r.img.naturalWidth, r.img.naturalHeight)), false);
+      var dataUrl = c.toDataURL('image/jpeg', 0.82);
+      return { fileInfo: { nome: (file.name || 'distinta').replace(/\.[^.]+$/, '') + '.jpg', mime: 'image/jpeg', base64: dataUrl.split(',')[1] }, anteprimaUrl: r.url };
+    });
+  }
+
+  function ocr(canvas, stDett) {
+    return caricaScript(TESS_URL).then(function () {
+      stDett('Preparo il lettore di testo (la prima volta richiede qualche secondo)…');
+      return window.Tesseract.createWorker('ita', 1, {
+        logger: function (m) { if (m.status === 'recognizing text') stDett('Lettura in corso… ' + Math.round(m.progress * 100) + '%'); }
+      });
+    }).then(function (worker) {
+      return worker.recognize(canvas).then(function (r) { return worker.terminate().then(function () { return r.data.text; }); });
+    });
+  }
+
+  function leggiFile(file, stDett) {
+    var eraPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    return preparaInvio(file).then(function (fi) {
+      if (!eraPdf) {
+        return caricaImmagine(file).then(function (r) {
+          var lato = Math.max(r.img.naturalWidth, r.img.naturalHeight);
+          var c = disegna(r.img, Math.max(1600, Math.min(2400, lato)), true);
+          return ocr(c, stDett);
+        }).then(function (testo) { return { testo: testo, fileInfo: fi.fileInfo, anteprimaUrl: fi.anteprimaUrl }; });
+      }
+      stDett('Leggo il PDF…');
+      return caricaScript(PDFJS_URL).then(function () {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+        return file.arrayBuffer();
+      }).then(function (buf) {
+        return window.pdfjsLib.getDocument({ data: buf }).promise;
+      }).then(function (pdf) {
+        var n = Math.min(pdf.numPages, 3), testo = '', p = Promise.resolve();
+        for (var i = 1; i <= n; i++) (function (num) {
+          p = p.then(function () { return pdf.getPage(num); }).then(function (pg) { return pg.getTextContent(); })
+            .then(function (tc) {
+              var riga = '', ultimaY = null;
+              tc.items.forEach(function (it) {
+                var y = it.transform[5];
+                if (ultimaY !== null && Math.abs(y - ultimaY) > 2) { testo += riga + '\n'; riga = ''; }
+                riga += it.str + ' '; ultimaY = y;
+              });
+              testo += riga + '\n';
+            });
+        })(i);
+        return p.then(function () {
+          if (testo.replace(/\s/g, '').length >= 40) return testo;
+          stDett('PDF scansionato: lo converto in immagine e lo leggo…');
+          return pdf.getPage(1).then(function (pg) {
+            var vp = pg.getViewport({ scale: 2.2 });
+            var c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+            return pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function () { return ocr(c, stDett); });
+          });
+        });
+      }).then(function (testo) { return { testo: testo, fileInfo: fi.fileInfo, anteprimaUrl: null }; });
+    });
+  }
+
+  // ---------------------------------------------------------------- revisione
+  function annoVista(mesi, def) { return mesi.length ? +mesi[0].slice(0, 4) : def; }
+
+  function elabora(testo, fileInfo, anteprimaUrl) {
+    var a = P.analizza(testo, [], { annoCorrente: new Date().getFullYear() });
+    var avvisi = a.avvisi.slice();
+    if (testo && socio) {
+      var tokTesto = {};
+      P.normNome(testo).forEach(function (x) { tokTesto[x] = 1; });
+      var nomeTok = P.normNome(socio.nome);
+      if (nomeTok.length && !nomeTok.some(function (x) { return tokTesto[x]; })) {
+        avvisi.push('Il tuo nome non compare sulla distinta (va bene se ha pagato un familiare o un\'altra persona).');
+      }
+      if (a.interni.length && !a.interni.some(function (x) { return socio.interni.indexOf(x) >= 0; })) {
+        avvisi.push('Sulla distinta è indicato l\'interno ' + a.interni.join(', ') + ', che non è tra i tuoi (' + socio.interni.join(', ') + '). Controlla.');
+      }
+    }
+    stato = {
+      testo: testo, fileInfo: fileInfo, anteprimaUrl: anteprimaUrl, analisi: a, avvisi: avvisi,
+      data: a.data || '', totale: a.totale ? euro(a.totale) : '',
+      ripartisci: !!socio && socio.interni.length > 1,
+      voci: a.voci.map(function (v) {
+        return { categoria: v.categoria, importo: v.importo ? euro(v.importo) : '', acconto: !!v.acconto, mesi: v.mesi.slice(), note: '', interno: socio.interni[0], annoVista: annoVista(v.mesi, a.anno || new Date().getFullYear()) };
+      }),
+      note: ''
+    };
+    if (!stato.voci.length) stato.voci.push({ categoria: 'Quota ordinaria', importo: '', acconto: false, mesi: [], note: '', interno: socio.interni[0], annoVista: a.anno || new Date().getFullYear() });
+    vistaRevisione();
+  }
+
+  function vistaRevisione() {
+    svuota(app);
+    var s = stato, a = s.analisi;
+    var card = h('div', { class: 'card' });
+    card.appendChild(h('h2', { text: 'Controlla i dati' }));
+    card.appendChild(h('p', { class: 'mut', text: 'Versamento di ' + socio.nome + ' — ' + testoInterni(socio.interni) }));
+    if (s.anteprimaUrl) card.appendChild(h('img', { class: 'anteprima', src: s.anteprimaUrl, alt: 'Anteprima della distinta' }));
+    else card.appendChild(h('p', { class: 'mut', text: 'File: ' + s.fileInfo.nome }));
+    s.avvisi.forEach(function (t) { card.appendChild(msg('warn', t)); });
+
+    var inData = h('input', { type: 'date', value: s.data, onchange: function () { s.data = inData.value; } });
+    card.appendChild(h('label', { text: 'Data del versamento' })); card.appendChild(inData);
+    var quadr = h('div');
+    var inTot = h('input', { type: 'text', inputmode: 'decimal', value: s.totale, oninput: function () { s.totale = inTot.value; aggiornaQuadratura(quadr); } });
+    card.appendChild(h('label', { text: 'Importo totale della distinta (€)' })); card.appendChild(inTot);
+    if (a.candidatiImporto && a.candidatiImporto.length > 1) {
+      var ch = h('div', { class: 'chips' });
+      a.candidatiImporto.slice(0, 6).forEach(function (v) {
+        ch.appendChild(h('button', { class: 'chip', type: 'button', text: '€ ' + euro(v), onclick: function () { s.totale = euro(v); inTot.value = s.totale; aggiornaQuadratura(quadr); } }));
+      });
+      card.appendChild(h('div', { class: 'mut', text: 'Altri importi letti:', style: 'margin-top:6px' })); card.appendChild(ch);
+    }
+    if (a.causale) card.appendChild(h('p', { class: 'mut', text: 'Causale letta: ' + a.causale }));
+
+    if (socio.interni.length > 1) {
+      var ck = h('input', { type: 'checkbox', onchange: function () { s.ripartisci = ck.checked; vistaRevisione(); } }); ck.checked = s.ripartisci;
+      card.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--tx);margin-top:14px' }, [ck, 'Questo versamento copre tutti i miei interni (' + socio.interni.join(' e ') + '): dividi in parti uguali']));
+    }
+
+    card.appendChild(h('h2', { text: 'Cosa stai pagando', style: 'margin-top:16px' }));
+    var vociBox = h('div');
+    card.appendChild(vociBox);
+    function disegnaVoci() {
+      svuota(vociBox);
+      s.voci.forEach(function (v, i) { vociBox.appendChild(cardVoce(v, i, quadr)); });
+    }
+    disegnaVoci();
+    card.appendChild(h('button', { type: 'button', style: 'margin-top:10px', text: '+ Aggiungi una voce (es. utenze + spese extra)', onclick: function () {
+      s.voci.push({ categoria: 'Utenze', importo: '', acconto: false, mesi: [], note: '', interno: socio.interni[0], annoVista: a.anno || new Date().getFullYear() });
+      vistaRevisione();
+    } }));
+    card.appendChild(quadr);
+    aggiornaQuadratura(quadr);
+
+    var inNote = h('textarea', { placeholder: 'Facoltativo', oninput: function () { s.note = inNote.value; } }); inNote.value = s.note;
+    card.appendChild(h('label', { text: 'Note' })); card.appendChild(inNote);
+
+    var esito = h('div');
+    var bSalva = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Invia la distinta', onclick: function () { salva(false, bSalva, esito); } });
+    card.appendChild(esito); card.appendChild(bSalva);
+    card.appendChild(h('button', { class: 'big', type: 'button', text: 'Annulla', onclick: vistaInizio }));
+    app.appendChild(card);
+  }
+
+  function cardVoce(v, i, quadr) {
+    var box = h('div', { class: 'voce' });
+    var sel = h('select', { onchange: function () { v.categoria = sel.value; } });
+    CATEGORIE.forEach(function (c) { var o = h('option', { value: c, text: c }); if (c === v.categoria) o.selected = true; sel.appendChild(o); });
+    box.appendChild(h('label', { text: 'Tipo' })); box.appendChild(sel);
+    var unica = stato.voci.length === 1;
+    if (!unica) {
+      var imp = h('input', { type: 'text', inputmode: 'decimal', value: v.importo, oninput: function () { v.importo = imp.value; aggiornaQuadratura(quadr); } });
+      box.appendChild(h('label', { text: 'Importo (€)' })); box.appendChild(imp);
+    }
+    if (socio.interni.length > 1 && !stato.ripartisci) {
+      var si = h('select', { onchange: function () { v.interno = si.value; } });
+      socio.interni.forEach(function (n) { var o = h('option', { value: n, text: 'Interno ' + n }); if (n === v.interno) o.selected = true; si.appendChild(o); });
+      box.appendChild(h('label', { text: 'Per quale interno' })); box.appendChild(si);
+    }
+    var ckA = h('input', { type: 'checkbox', onchange: function () { v.acconto = ckA.checked; } }); ckA.checked = !!v.acconto;
+    box.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--tx)' }, [ckA, 'È un acconto']));
+
+    box.appendChild(h('label', { text: 'Mesi a cui si riferisce' }));
+    var griglia = h('div', { class: 'mesi' });
+    var etAnno = h('strong', { text: String(v.annoVista) });
+    var riepilogo = h('p', { class: 'mut', text: testoMesi(v.mesi) });
+    function disegnaMesi() {
+      svuota(griglia); etAnno.textContent = String(v.annoVista);
+      P.MESI_BREVI.forEach(function (nome, k) {
+        var chiave = v.annoVista + '-' + (k + 1 < 10 ? '0' : '') + (k + 1);
+        griglia.appendChild(h('button', { type: 'button', class: v.mesi.indexOf(chiave) >= 0 ? 'on' : '', text: nome, onclick: function () {
+          var p = v.mesi.indexOf(chiave);
+          if (p >= 0) v.mesi.splice(p, 1); else { v.mesi.push(chiave); v.mesi.sort(); }
+          disegnaMesi(); riepilogo.textContent = testoMesi(v.mesi);
+        } }));
+      });
+    }
+    box.appendChild(h('div', { class: 'anno' }, [
+      h('button', { type: 'button', text: '‹', onclick: function () { v.annoVista--; disegnaMesi(); } }), etAnno,
+      h('button', { type: 'button', text: '›', onclick: function () { v.annoVista++; disegnaMesi(); } })
+    ]));
+    box.appendChild(griglia); box.appendChild(riepilogo);
+    disegnaMesi();
+
+    var nt = h('input', { type: 'text', value: v.note, placeholder: 'Note sulla voce (facoltativo)', oninput: function () { v.note = nt.value; } });
+    box.appendChild(nt);
+    if (!unica) box.appendChild(h('button', { type: 'button', style: 'margin-top:8px', text: 'Rimuovi questa voce', onclick: function () { stato.voci.splice(i, 1); vistaRevisione(); } }));
+    return box;
+  }
+
+  function testoMesi(mesi) {
+    if (!mesi.length) return 'Nessun mese selezionato.';
+    return 'Selezionati: ' + mesi.map(function (m) { return P.MESI_BREVI[+m.slice(5) - 1] + ' ' + m.slice(0, 4); }).join(', ');
+  }
+
+  function vociEffettive() {
+    var tot = numero(stato.totale);
+    if (stato.voci.length === 1) return [{ v: stato.voci[0], importo: tot }];
+    return stato.voci.map(function (v) { return { v: v, importo: numero(v.importo) }; });
+  }
+
+  function aggiornaQuadratura(box) {
+    svuota(box);
+    var tot = numero(stato.totale);
+    if (stato.voci.length < 2) return;
+    var somma = vociEffettive().reduce(function (s, x) { return s + (isFinite(x.importo) ? x.importo : 0); }, 0);
+    if (isFinite(tot) && Math.abs(somma - tot) < 0.009) box.appendChild(msg('ok', 'Quadra: voci € ' + euro(somma) + ' = totale € ' + euro(tot)));
+    else box.appendChild(msg('warn', 'Le voci sommano € ' + euro(somma) + ' ma il totale è € ' + euro(tot) + '.'));
+  }
+
+  // Ripartizione in parti uguali (al centesimo) su tutti gli interni del socio
+  function dividi(importo, n) {
+    var cent = Math.round(importo * 100), base = Math.floor(cent / n), avanzo = cent - base * n, out = [];
+    for (var i = 0; i < n; i++) out.push((base + (i === 0 ? avanzo : 0)) / 100);
+    return out;
+  }
+
+  function vociPerInvio() {
+    var out = [];
+    vociEffettive().forEach(function (x) {
+      if (stato.ripartisci && socio.interni.length > 1) {
+        var parti = dividi(x.importo, socio.interni.length);
+        socio.interni.forEach(function (n, k) {
+          out.push({ interno: n, categoria: x.v.categoria, importo: parti[k], mesi: x.v.mesi, acconto: !!x.v.acconto, note: x.v.note });
+        });
+      } else {
+        out.push({ interno: x.v.interno, categoria: x.v.categoria, importo: x.importo, mesi: x.v.mesi, acconto: !!x.v.acconto, note: x.v.note });
+      }
+    });
+    return out;
+  }
+
+  // ---------------------------------------------------------------- salvataggio
+  function validaStato() {
+    var s = stato, errori = [];
+    var tot = numero(s.totale);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s.data)) errori.push('Scegli la data del versamento.');
+    if (!isFinite(tot) || tot <= 0) errori.push('Importo totale non valido.');
+    var somma = 0;
+    vociEffettive().forEach(function (x, i) {
+      if (!isFinite(x.importo) || x.importo <= 0) errori.push('Importo non valido nella voce ' + (i + 1) + '.'); else somma += x.importo;
+    });
+    if (isFinite(tot) && Math.abs(somma - tot) > 0.009) errori.push('Le voci non sommano al totale.');
+    return errori;
+  }
+
+  function salva(forza, bottone, esito) {
+    var errori = validaStato();
+    svuota(esito);
+    if (errori.length) { errori.forEach(function (e) { esito.appendChild(msg('err', e)); }); return; }
+    var s = stato, tot = numero(s.totale);
+    var payload = {
+      azione: 'salva', forza: !!forza, utente: socio.nome,
+      file_nome: s.fileInfo.nome, file_mime: s.fileInfo.mime, file_base64: s.fileInfo.base64,
+      versamento: { data: s.data, socio: socio.nome, importo_totale: tot, note: s.note, voci: vociPerInvio() }
+    };
+    bottone.disabled = true; bottone.textContent = 'Invio in corso…';
+    chiama(payload).then(function (j) {
+      bottone.disabled = false; bottone.textContent = 'Invia la distinta';
+      if (j.ok) return vistaSuccesso();
+      if (j.doppione) {
+        if (window.confirm('Sembra che questa distinta sia già stata inviata (stessa data, interno e importo). Inviarla comunque?')) return salva(true, bottone, esito);
+        return;
+      }
+      esito.appendChild(msg('err', j.errore || 'Errore sconosciuto.'));
+    }).catch(function (e) {
+      bottone.disabled = false; bottone.textContent = 'Invia la distinta';
+      esito.appendChild(msg('err', 'Invio non riuscito: ' + e.message + ' Controlla la connessione e riprova (i dati sono ancora qui).'));
+    });
+  }
+
+  function vistaSuccesso() {
+    svuota(app);
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: '✅ Distinta ricevuta, grazie!' }),
+      h('p', { text: 'Conserva la tua distinta originale: serve in caso di verifica.' }),
+      h('button', { class: 'pri big', type: 'button', text: 'Carica un\'altra distinta', onclick: vistaInizio })
+    ]));
+  }
+
+  // ---------------------------------------------------------------- avvio
+  document.getElementById('btnImpost').addEventListener('click', vistaImpostazioni);
+  window.__App = {
+    elabora: elabora, stato: function () { return stato; },
+    socio: function (s) { if (s !== undefined) socio = s; return socio; },
+    cfg: function (c) { if (c) cfg = c; return cfg; }, avvia: vistaInizio, salva: salva
+  };
+  leggiLink();
+  vistaInizio();
+})();
+
+</script>
+</body>
+</html>
