@@ -505,6 +505,13 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'];
 
   var app = document.getElementById('app');
+  // ---- COLLEGAMENTO FISSO -------------------------------------------------
+  // Compilando questi due valori i soci entrano dal semplice indirizzo della
+  // pagina, senza bisogno del link speciale. url = indirizzo dell'App web
+  // (finisce con /exec), token = codice di accesso delle Proprieta' dello script.
+  var COLLEGAMENTO = { url: 'https://script.google.com/macros/s/AKfycbxiTb2zwlQ6PMnLUV46ojPv3D8AGE_4M4oUOTikDXQSfgVgiXZzZoXuTRz9Jgm76a3Fjg/exec', token: 'golfo2026fenici' };
+  // ---------------------------------------------------------------------------
+  var DIRETTIVO = /direttivo/i.test(location.hash);
   var cfg = leggiCfg();
   var socio = leggiSocio();   // {nome, interni:[...]} ricordato su questo telefono
   var stato = null;           // dati in revisione
@@ -533,7 +540,10 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   function scrivi(chiave, val) {
     try { if (val === null) localStorage.removeItem(chiave); else localStorage.setItem(chiave, JSON.stringify(val)); } catch (e) { /* ok */ }
   }
-  function leggiCfg() { return leggi('distinte_cfg') || {}; }
+  function leggiCfg() {
+    if (COLLEGAMENTO.url && COLLEGAMENTO.token) return { url: COLLEGAMENTO.url, token: COLLEGAMENTO.token };
+    return leggi('distinte_cfg') || {};
+  }
   function leggiSocio() {
     var s = leggi('distinte_socio');
     return s && s.nome && Array.isArray(s.interni) && s.interni.length ? s : null;
@@ -615,13 +625,21 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
     ]));
   }
 
+  function vistaNonCollegata() {
+    svuota(app);
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Pagina non ancora attiva' }),
+      h('p', { text: 'Apri la pagina dal link che hai ricevuto dal direttivo. Se non funziona, contatta il direttivo.' })
+    ]));
+  }
+
   // ---------------------------------------------------------------- identificazione
   function vistaIdentifica() {
     svuota(app); stato = null;
     var risultati = h('div', { class: 'chips', style: 'flex-direction:column;align-items:stretch' });
     var esito = h('div');
     var timer = null, seq = 0;
-    var inp = h('input', { type: 'text', placeholder: 'Il tuo cognome, nome o numero di interno', autocomplete: 'off', oninput: function () {
+    var inp = h('input', { type: 'text', placeholder: 'Es. Rossi oppure 38', autocomplete: 'off', autofocus: true, oninput: function () {
       clearTimeout(timer);
       var q = inp.value.trim();
       svuota(esito);
@@ -644,8 +662,8 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       }, 350);
     } });
     app.appendChild(h('div', { class: 'card' }, [
-      h('h2', { text: 'Chi sei?' }),
-      h('p', { class: 'mut', text: 'Scrivi il tuo cognome o nome (almeno 3 lettere) oppure il numero del tuo interno, poi tocca il tuo nome nell\'elenco. Lo ricorderò su questo telefono.' }),
+      h('h2', { text: 'Benvenuto! Chi sei?' }),
+      h('p', { class: 'mut', text: 'Scrivi il tuo cognome oppure il numero del tuo interno e tocca il tuo nome. Serve solo la prima volta: poi questo telefono ti riconosce.' }),
       inp, esito, risultati
     ]));
   }
@@ -653,7 +671,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   // ---------------------------------------------------------------- inizio
   function vistaInizio() {
     svuota(app); stato = null;
-    if (!cfg.url || !cfg.token) return vistaImpostazioni();
+    if (!cfg.url || !cfg.token) return DIRETTIVO ? vistaImpostazioni() : vistaNonCollegata();
     if (!socio) return vistaIdentifica();
     var fCam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hide', onchange: function () { scelto(fCam.files[0]); } });
     var fFile = h('input', { type: 'file', accept: 'image/*,application/pdf', class: 'hide', onchange: function () { scelto(fFile.files[0]); } });
@@ -1018,7 +1036,9 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   }
 
   // ---------------------------------------------------------------- avvio
-  document.getElementById('btnImpost').addEventListener('click', vistaImpostazioni);
+  var btnImp = document.getElementById('btnImpost');
+  btnImp.addEventListener('click', vistaImpostazioni);
+  if (!DIRETTIVO) btnImp.classList.add('hide');
   window.__App = {
     elabora: elabora, stato: function () { return stato; },
     socio: function (s) { if (s !== undefined) socio = s; return socio; },
