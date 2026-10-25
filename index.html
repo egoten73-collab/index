@@ -157,6 +157,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
     function aggiungi(valStr, peso, pos) {
       var v = parseImporto(valStr.replace(/\s/g, ''));
       if (!isFinite(v) || v <= 0 || v > 1e6) return;
+      if (/^(19|20)\d{2}$/.test(valStr.replace(/\s/g, ''))) peso -= 1.5;   // sembra un anno
       cand.push({ valore: Math.round(v * 100) / 100, peso: peso, pos: pos });
     }
     var m, re;
@@ -354,13 +355,29 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   }
 
   // ------------------------------------------------------------------ voci multiple
+  // Categorie citate nella causale (una distinta puo' pagare insieme quota e utenze).
+  function categorieCitate(testo) {
+    var t = senzaAccenti(String(testo)).toLowerCase(), out = [];
+    if (/quota|ordinari|mensilit|\brata\b|canone/.test(t)) out.push('Quota ordinaria');
+    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
+    if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
+    return out;
+  }
+
   function trovaVoci(causale, totale, annoDefault) {
     var globali = trovaMesi(causale, annoDefault);
     var base = {
       categoria: indovinaCategoria(causale), importo: totale, mesi: globali,
       acconto: haAcconto(causale), note: ''
     };
-    if (!causale || !totale) return [base];
+    // Causale mista senza importi separabili: una voce per categoria, importi da indicare.
+    var citate = categorieCitate(causale || '');
+    function miste() {
+      return citate.map(function (c) {
+        return { categoria: c, importo: null, mesi: c === 'Quota ordinaria' ? globali : [], acconto: c === 'Quota ordinaria' && haAcconto(causale), note: '', daDividere: true };
+      });
+    }
+    if (!causale || !totale) return citate.length > 1 ? miste() : [base];
 
     var pezzi = causale.split(/\s*(?:\+|;|\n|\s&\s|\se\s)\s*/i).filter(function (x) { return x.trim(); });
     // unisce i pezzi senza importo al pezzo successivo
@@ -369,9 +386,10 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       var ha = trovaImporti(p).candidati.length > 0 && /(€|eur|\d[,.]\d{2})/i.test(p);
       if (ha) { chunks.push((pendente + ' ' + p).trim()); pendente = ''; } else pendente += ' ' + p;
     });
-    if (chunks.length < 2) return [base];
+    if (chunks.length < 2) return citate.length > 1 ? miste() : [base];
     var voci = chunks.map(function (c) {
-      var senzaInt = c.replace(/\b(?:int(?:erno)?|villino|vill)\b\.?\s*\d+/gi, ' ');
+      var senzaInt = c.replace(/\b(?:int(?:erno)?|villino|vill)\b\.?\s*\d+/gi, ' ')
+        .replace(/\b(?:19|20)\d{2}\b(?!\s*[,.]\d)/g, ' ');
       var imp = trovaImporti(senzaInt);
       var mesi = trovaMesi(c, annoDefault);
       return {
@@ -380,7 +398,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       };
     });
     var somma = voci.reduce(function (s, v) { return s + (v.importo || 0); }, 0);
-    if (Math.abs(somma - totale) > 0.011) return [base];
+    if (Math.abs(somma - totale) > 0.011) return citate.length > 1 ? miste() : [base];
     return voci;
   }
 
@@ -475,6 +493,10 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
     if (!imp.totale) avvisi.push('Importo non riconosciuto: scrivilo a mano.');
     if (!data) avvisi.push('Data non riconosciuta: scegli la data del versamento.');
     if (!causale) avvisi.push('Causale non trovata: controlla mesi e tipo di versamento.');
+    if (voci.some(function (v) { return v.daDividere; })) {
+      avvisi.push('La causale comprende più cose (' + voci.map(function (v) { return v.categoria.toLowerCase(); }).join(' + ') +
+        '): scrivi quanto hai versato per ciascuna voce. La somma deve essere uguale al totale.');
+    }
     return {
       data: data, totale: imp.totale, candidatiImporto: imp.candidati, causale: causale,
       ordinante: ordinante, interni: interni, socio: socio.socio, candidatiSocio: socio.candidati,
@@ -879,7 +901,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       s.voci.forEach(function (v, i) { vociBox.appendChild(cardVoce(v, i, quadr)); });
     }
     disegnaVoci();
-    card.appendChild(h('button', { type: 'button', style: 'margin-top:10px', text: '+ Aggiungi una voce (es. utenze + spese extra)', onclick: function () {
+    card.appendChild(h('button', { type: 'button', style: 'margin-top:10px', text: '+ Aggiungi una voce (es. quota + utenze)', onclick: function () {
       s.voci.push({ categoria: 'Utenze', importo: '', acconto: false, mesi: [], note: '', interno: socio.interni[0], annoVista: a.anno || new Date().getFullYear() });
       vistaRevisione();
     } }));
