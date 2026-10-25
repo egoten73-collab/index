@@ -537,6 +537,9 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   var cfg = leggiCfg();
   var socio = leggiSocio();   // {nome, interni:[...]} ricordato su questo telefono
   var stato = null;           // dati in revisione
+  // Quote mensili: lette dal foglio 'tariffe' tramite lo script; 30 € se non disponibili.
+  var TARIFFE = [{ dal: '2000-01', quota: 30 }];
+  var tariffeCaricate = false;
 
   // ---------------------------------------------------------------- utilita'
   function h(tag, attrs, figli) {
@@ -617,6 +620,26 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       });
   }
 
+  function caricaTariffe() {
+    if (tariffeCaricate || !cfg.url || !cfg.token) return;
+    tariffeCaricate = true;
+    chiama({ azione: 'config' }).then(function (j) {
+      if (j && j.ok && j.tariffe && j.tariffe.length) TARIFFE = j.tariffe;
+    }).catch(function () { tariffeCaricate = false; });
+  }
+  function quotaMese(m) {
+    var q = TARIFFE[0].quota;
+    TARIFFE.forEach(function (t) { if (t.dal <= m) q = t.quota; });
+    return q;
+  }
+  // Quota prevista per una voce: somma delle quote dei mesi scelti (x interni se ripartita)
+  function attesoVoce(v) {
+    var tot = 0;
+    (v.mesi || []).forEach(function (m) { tot += quotaMese(m); });
+    var n = stato && stato.ripartisci && socio && socio.interni.length > 1 ? socio.interni.length : 1;
+    return Math.round(tot * n * 100) / 100;
+  }
+
   // ---------------------------------------------------------------- impostazioni (direttivo)
   function vistaImpostazioni() {
     svuota(app);
@@ -670,6 +693,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
         var mio = ++seq;
         chiama({ azione: 'cerca', q: q }).then(function (j) {
           if (mio !== seq) return;
+          caricaTariffe();
           svuota(risultati); svuota(esito);
           if (!j.ok) { esito.appendChild(msg('err', j.errore || 'Errore')); return; }
           if (!j.risultati.length) { esito.appendChild(msg('warn', 'Nessun socio trovato. Controlla come hai scritto il nome oppure prova con il numero di interno.')); return; }
@@ -695,6 +719,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
     svuota(app); stato = null;
     if (!cfg.url || !cfg.token) return DIRETTIVO ? vistaImpostazioni() : vistaNonCollegata();
     if (!socio) return vistaIdentifica();
+    caricaTariffe();
     var fCam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hide', onchange: function () { scelto(fCam.files[0]); } });
     var fFile = h('input', { type: 'file', accept: 'image/*,application/pdf', class: 'hide', onchange: function () { scelto(fFile.files[0]); } });
     app.appendChild(h('div', { class: 'card' }, [
@@ -861,12 +886,25 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       note: ''
     };
     if (!stato.voci.length) stato.voci.push({ categoria: 'Quota ordinaria', importo: '', acconto: false, mesi: [], note: '', interno: socio.interni[0], annoVista: a.anno || new Date().getFullYear() });
+    // Causale mista (es. quota + utenze) senza importi separati: la quota si calcola dai mesi, il resto va all'altra voce
+    if (a.voci.some(function (v) { return v.daDividere; }) && a.totale && stato.voci.length === 2) {
+      var q = stato.voci.filter(function (v) { return v.categoria === 'Quota ordinaria'; })[0];
+      var altra = stato.voci.filter(function (v) { return v !== q; })[0];
+      var att = q ? attesoVoce(q) : 0;
+      if (q && altra && att > 0 && att < a.totale) {
+        q.importo = euro(att); altra.importo = euro(Math.round((a.totale - att) * 100) / 100);
+        stato.avvisi = stato.avvisi.filter(function (t) { return t.indexOf('La causale comprende') !== 0; });
+        stato.avvisi.push('Ho diviso il versamento: quota ' + q.mesi.length + (q.mesi.length === 1 ? ' mese' : ' mesi') + ' = € ' + q.importo +
+          ', ' + altra.categoria.toLowerCase() + ' = € ' + altra.importo + '. Controlla e correggi se serve.');
+      }
+    }
     vistaRevisione();
   }
 
   function vistaRevisione() {
     svuota(app);
     var s = stato, a = s.analisi;
+    s._info = [];
     var card = h('div', { class: 'card' });
     card.appendChild(h('h2', { text: 'Controlla i dati' }));
     card.appendChild(h('p', { class: 'mut', text: 'Versamento di ' + socio.nome + ' — ' + testoInterni(socio.interni) }));
@@ -920,7 +958,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
 
   function cardVoce(v, i, quadr) {
     var box = h('div', { class: 'voce' });
-    var sel = h('select', { onchange: function () { v.categoria = sel.value; } });
+    var sel = h('select', { onchange: function () { v.categoria = sel.value; aggiornaInfoQuota(); } });
     CATEGORIE.forEach(function (c) { var o = h('option', { value: c, text: c }); if (c === v.categoria) o.selected = true; sel.appendChild(o); });
     box.appendChild(h('label', { text: 'Tipo' })); box.appendChild(sel);
     var unica = stato.voci.length === 1;
@@ -933,7 +971,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       socio.interni.forEach(function (n) { var o = h('option', { value: n, text: 'Interno ' + n }); if (n === v.interno) o.selected = true; si.appendChild(o); });
       box.appendChild(h('label', { text: 'Per quale interno' })); box.appendChild(si);
     }
-    var ckA = h('input', { type: 'checkbox', onchange: function () { v.acconto = ckA.checked; } }); ckA.checked = !!v.acconto;
+    var ckA = h('input', { type: 'checkbox', onchange: function () { v.acconto = ckA.checked; aggiornaInfoQuota(); } }); ckA.checked = !!v.acconto;
     box.appendChild(h('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--tx)' }, [ckA, 'È un acconto']));
 
     box.appendChild(h('label', { text: 'Mesi a cui si riferisce' }));
@@ -947,7 +985,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
         griglia.appendChild(h('button', { type: 'button', class: v.mesi.indexOf(chiave) >= 0 ? 'on' : '', text: nome, onclick: function () {
           var p = v.mesi.indexOf(chiave);
           if (p >= 0) v.mesi.splice(p, 1); else { v.mesi.push(chiave); v.mesi.sort(); }
-          disegnaMesi(); riepilogo.textContent = testoMesi(v.mesi);
+          disegnaMesi(); riepilogo.textContent = testoMesi(v.mesi); aggiornaInfoQuota();
         } }));
       });
     }
@@ -956,12 +994,50 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
       h('button', { type: 'button', text: '›', onclick: function () { v.annoVista++; disegnaMesi(); } })
     ]));
     box.appendChild(griglia); box.appendChild(riepilogo);
+    var info = h('div');
+    box.appendChild(info);
+    stato._info.push({ v: v, el: info });
     disegnaMesi();
 
     var nt = h('input', { type: 'text', value: v.note, placeholder: 'Note sulla voce (facoltativo)', oninput: function () { v.note = nt.value; } });
     box.appendChild(nt);
     if (!unica) box.appendChild(h('button', { type: 'button', style: 'margin-top:8px', text: 'Rimuovi questa voce', onclick: function () { stato.voci.splice(i, 1); vistaRevisione(); } }));
     return box;
+  }
+
+  // Confronto tra importo della voce e quota prevista (es. 30 € al mese)
+  function aggiornaInfoQuota() {
+    if (!stato || !stato._info) return;
+    var tot = numero(stato.totale);
+    stato._info.forEach(function (x) {
+      var v = x.v, el = x.el;
+      svuota(el);
+      if (v.categoria !== 'Quota ordinaria' || !v.mesi.length) return;
+      var att = attesoVoce(v);
+      var nInt = stato.ripartisci && socio.interni.length > 1 ? socio.interni.length : 1;
+      var q0 = quotaMese(v.mesi[0]), uguali = v.mesi.every(function (m) { return quotaMese(m) === q0; });
+      var spiega = 'Quota prevista: ' + (uguali ? v.mesi.length + (v.mesi.length === 1 ? ' mese' : ' mesi') + ' × € ' + euro(q0) : v.mesi.length + ' mesi') +
+        (nInt > 1 ? ' × ' + nInt + ' interni' : '') + ' = € ' + euro(att);
+      var imp = stato.voci.length === 1 ? tot : numero(v.importo);
+      if (!isFinite(imp) || imp <= 0 || Math.abs(imp - att) < 0.009) { el.appendChild(msg(Math.abs(imp - att) < 0.009 ? 'ok' : '', spiega + (Math.abs(imp - att) < 0.009 ? ' ✓' : ''))); return; }
+      if (imp < att) {
+        el.appendChild(msg(v.acconto ? 'ok' : 'warn', spiega + '. L\'importo (€ ' + euro(imp) + ') è inferiore' +
+          (v.acconto ? ': registrato come acconto.' : ': se è un pagamento parziale spunta "È un acconto", oppure controlla i mesi.')));
+        return;
+      }
+      var resto = Math.round((imp - att) * 100) / 100;
+      var box = msg('warn', spiega + '. L\'importo (€ ' + euro(imp) + ') è superiore di € ' + euro(resto) + ': se comprende anche utenze o spese extra, separale.');
+      el.appendChild(box);
+      if (stato.voci.length === 1) {
+        ['Utenze', 'Spese extra'].forEach(function (cat) {
+          el.appendChild(h('button', { type: 'button', style: 'margin:0 6px 6px 0', text: 'Separa € ' + euro(resto) + ' come ' + cat.toLowerCase(), onclick: function () {
+            v.importo = euro(att);
+            stato.voci.push({ categoria: cat, importo: euro(resto), acconto: false, mesi: [], note: '', interno: v.interno, annoVista: v.annoVista });
+            vistaRevisione();
+          } }));
+        });
+      }
+    });
   }
 
   function testoMesi(mesi) {
@@ -976,6 +1052,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:.8rem;background:var(--
   }
 
   function aggiornaQuadratura(box) {
+    aggiornaInfoQuota();
     svuota(box);
     var tot = numero(stato.totale);
     if (stato.voci.length < 2) return;
