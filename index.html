@@ -791,7 +791,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   // Compilando questi due valori i soci entrano dal semplice indirizzo della
   // pagina, senza bisogno del link speciale. url = indirizzo dell'App web
   // (finisce con /exec), token = codice di accesso delle Proprieta' dello script.
-  var COLLEGAMENTO = { url: 'https://script.google.com/macros/s/AKfycbxiTb2zwlQ6PMnLUV46ojPv3D8AGE_4M4oUOTikDXQSfgVgiXZzZoXuTRz9Jgm76a3Fjg/exec', token: 'golfo2026fenici' };
+  var COLLEGAMENTO = { url: 'https://script.google.com/macros/s/AKfycbwXAyBCxCvabH5TzX6fcKPjuP1-pXWyyPrdX3hm_T36QX_EowEoIDWQ2A3dkXWkPc5yhQ/exec', token: 'golfo2026fenici' };
   // ---------------------------------------------------------------------------
   var DIRETTIVO = /direttivo/i.test(location.hash);
   var cfg = leggiCfg();
@@ -860,7 +860,8 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       var k = kv.slice(0, i), v = decodeURIComponent(kv.slice(i + 1));
       if (k === 'u') u = v; else if (k === 'c') c = v;
     });
-    if (u && c && /^https:\/\/script\.google\.com\//.test(u)) {
+    // con il collegamento fisso nella pagina, i vecchi link (#u=...&c=...) vengono ignorati
+    if (u && c && /^https:\/\/script\.google\.com\//.test(u) && !(COLLEGAMENTO.url && COLLEGAMENTO.token)) {
       cfg = { url: u, token: c };
       scrivi('distinte_cfg', cfg);
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ok */ }
