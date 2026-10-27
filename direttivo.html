@@ -145,6 +145,25 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 .pan-testa h3{margin:0;font-family:'Cormorant Garamond',serif;font-weight:500;font-size:21px;color:var(--oro2)}
 .ok-badge{white-space:nowrap;font-size:12px;color:var(--ok);border:1px solid rgba(127,200,160,.45);background:rgba(127,200,160,.08);border-radius:999px;padding:3px 10px}
 .testata{padding:14px 16px}
+.voce-lista{border-top:1px solid var(--br);padding:10px 0}
+.voce-lista:first-of-type{border-top:none}
+.vl-testa{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.vl-testa strong{font-weight:500;font-size:15px}
+.vl-importo{color:var(--oro2);white-space:nowrap;font-variant-numeric:tabular-nums}
+button.piccolo{padding:6px 12px;font-size:13px;border-radius:10px}
+.riga2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.riga-sit{border:1px solid var(--br);border-radius:12px;padding:10px 12px;background:rgba(10,22,40,.4)}
+.rs-testa{display:flex;align-items:center;gap:10px}
+.rs-testa strong{flex:1;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs-tot{color:var(--err);font-weight:600;white-space:nowrap}
+.rs-cifre{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.cifra{font-size:12px;color:var(--mut);border:1px solid var(--br);border-radius:999px;padding:3px 9px}
+.cifra b{font-weight:500;color:var(--ok)}
+.cifra.deve b{color:var(--err)}
+.cifra.credito b{color:var(--ok)}
+.chip.on{border-color:var(--oro);color:var(--oro2)}
+.riga2>div{min-width:0}
+input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}
 
 </style>
 </head>
@@ -162,7 +181,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 <header>
   <div class="emblema"><img src="data:image/jpeg;base64,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" alt="Associazione Golfo dei Fenici"></div>
   <h1>Golfo dei Fenici</h1>
-  <div class="sottotitolo">Direttivo — Letture contatori</div>
+  <div class="sottotitolo">Associazione — Area direttivo</div>
   <div class="divisore"></div>
 </header>
 <main id="app"></main>
@@ -400,6 +419,61 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 })(window);
 
 </script>
+<script id="bollette-js">
+/* Lettura dei dati principali dal testo di una bolletta Enel (luce) o Abbanoa (acqua). */
+(function (root) {
+  'use strict';
+  function num(s) { return s == null ? null : Number(String(s).replace(/\./g, '').replace(',', '.')); }
+  function iso(g, m, a) { return a + '-' + ('0' + m).slice(-2) + '-' + ('0' + g).slice(-2); }
+  var MESI = { GEN: 1, FEB: 2, MAR: 3, APR: 4, MAG: 5, GIU: 6, LUG: 7, AGO: 8, SET: 9, OTT: 10, NOV: 11, DIC: 12 };
+
+  function enel(t) {
+    var r = { tipo: 'luce', fornitore: 'Enel' }, m;
+    if ((m = /fattura elettronica n\.?\s*(\d+)\s+del\s+(\d\d)\/(\d\d)\/(\d{4})/i.exec(t))) { r.numero = m[1]; r.emessa = iso(+m[2], +m[3], +m[4]); }
+    if ((m = /TOTALE BOLLETTA\s+([\d.]+,\d{2})\s*€/i.exec(t))) r.importo = num(m[1]);
+    if ((m = /Accisa sull'energia elettrica[\s\S]{0,60}?su kWh\s*([\d.]+)/i.exec(t))) r.consumo = num(m[1]);
+    else if ((m = /Quota consumi\s+([\d.]+)\s*kWh/i.exec(t))) r.consumo = num(m[1]);
+    if ((m = /Consumo fatturato\s*\(dal\s+(\d\d)\.(\d\d)\.(\d{4})\s+al\s+(\d\d)\.(\d\d)\.(\d{4})\)/i.exec(t))) {
+      r.dal = iso(+m[1], +m[2], +m[3]); r.al = iso(+m[4], +m[5], +m[6]);
+    } else if ((m = /Periodo\s+([A-Z]{3})[A-Z]*\.?\s+(\d{4})/.exec(t)) && MESI[m[1]]) {
+      var mm = MESI[m[1]], aa = +m[2], ult = new Date(aa, mm, 0).getDate();
+      r.dal = iso(1, mm, aa); r.al = iso(ult, mm, aa);
+    }
+    r.note = 'Enel fatt. ' + (r.numero || '');
+    return r;
+  }
+
+  function abbanoa(t) {
+    var r = { tipo: 'acqua', fornitore: 'Abbanoa' }, m;
+    if ((m = /Fattura num\.\s*(\d+)\s+del\s+(\d\d)\/(\d\d)\/(\d{4})/i.exec(t))) { r.numero = m[1]; r.emessa = iso(+m[2], +m[3], +m[4]); }
+    if ((m = /periodo\s+dal\s+(\d\d)\/(\d\d)\/(\d{4})\s+al\s+(\d\d)\/(\d\d)\/(\d{4})\s+è di[\s\S]{0,300}?mc\.?\s*([\d.]+)/i.exec(t))) {
+      r.dal = iso(+m[1], +m[2], +m[3]); r.al = iso(+m[4], +m[5], +m[6]); r.consumo = num(m[7]);
+    } else if ((m = /Consumo fatturato\s+([\d.]+)\s*mc/i.exec(t))) r.consumo = num(m[1]);
+    // costo del periodo = componenti del servizio + IVA (esclusi acconti gia' pagati e interessi di mora)
+    var voci = ['Quota fissa', 'Acquedotto', 'Fognatura', 'Depurazione', 'Oneri perequazione'], somma = 0, trovate = 0;
+    voci.forEach(function (v) {
+      var x = new RegExp(v + '\\s+€\\s*(-?[\\d.]+,\\d{2})', 'i').exec(t);
+      if (x) { somma += num(x[1]); trovate++; }
+    });
+    var iva = /IVA\s+(\d+)%\s+su imponibile/i.exec(t);
+    var aliquota = iva ? +iva[1] : 10;
+    if (trovate >= 2) r.importo = Math.round(somma * (1 + aliquota / 100) * 100) / 100;
+    var mora = /Totale Addebiti\/accrediti diversi\s+(-?[\d.]+,\d{2})/i.exec(t);
+    r.note = 'Abbanoa fatt. ' + (r.numero || '') + (mora && num(mora[1]) > 0.5 ? ' (esclusi acconti e mora ' + mora[1] + ' €)' : ' (esclusi acconti)');
+    return r;
+  }
+
+  function leggiBolletta(testo) {
+    var t = String(testo || '').replace(/ /g, ' ');
+    if (/abbanoa/i.test(t)) return abbanoa(t);
+    if (/enel/i.test(t) && /kWh/i.test(t)) return enel(t);
+    return null;
+  }
+  root.LettoreBollette = { leggi: leggiBolletta };
+  if (typeof module !== 'undefined') module.exports = root.LettoreBollette;
+})(typeof window !== 'undefined' ? window : this);
+
+</script>
 <script id="direttivo-js">
 (function () {
   'use strict';
@@ -504,6 +578,12 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
         h('span', { class: 'menu-freccia', text: '›' })
       ]),
       voceMenu('🧮', 'Ricalcola le utenze', 'Aggiorna subito dovuto e saldi (lo fa anche ogni notte)', ricalcola)
+    ]));
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Conti' }),
+      voceMenu('👥', 'Situazione soci', 'Quanto deve ogni interno: utenze, quote, spese straordinarie', vistaSituazioneSoci),
+      voceMenu('🧾', 'Bollette e prezzi', 'Inserisci le bollette Enel e Abbanoa: i prezzi si aggiornano', vistaBollette),
+      voceMenu('📒', 'Registro spese', 'Spese ordinarie e straordinarie (divise tra i soci)', function () { vistaSpese(); })
     ]));
     app.appendChild(h('button', { type: 'button', class: 'big', text: 'Esci', onclick: esci }));
     chiama({ azione: 'direttivo_daverificare' }).then(function (j) {
@@ -686,6 +766,298 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 
     if (fatto(x, tipo)) riepilogo(numIt(x[tipo].valore) + ' ' + UNITA[tipo] + ' · ' + x[tipo].data); else modulo(null);
     return box;
+  }
+
+  // ================================================================ file (PDF o foto) -> base64
+  var PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  function caricaScript(url) {
+    return new Promise(function (ok, ko) {
+      var s = document.createElement('script'); s.src = url; s.onload = ok;
+      s.onerror = function () { ko(new Error('Lettore PDF non disponibile (serve internet).')); }; document.head.appendChild(s);
+    });
+  }
+  function leggiFile(file) {
+    var pdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (!pdf) return window.Contatori.caricaFoto(file).then(function (f) { return { base64: f.base64, mime: 'image/jpeg', nome: (file.name || 'ricevuta').replace(/\.[^.]+$/, '') + '.jpg', pdf: false }; });
+    return new Promise(function (ok, ko) {
+      var fr = new FileReader();
+      fr.onload = function () { ok({ base64: String(fr.result).split(',')[1], mime: 'application/pdf', nome: file.name || 'documento.pdf', pdf: true }); };
+      fr.onerror = function () { ko(new Error('File non leggibile.')); };
+      fr.readAsDataURL(file);
+    });
+  }
+  /** Testo di un PDF, riga per riga (come appare sulla pagina). */
+  function testoPdf(file) {
+    return (window.pdfjsLib ? Promise.resolve() : caricaScript(PDFJS_URL)).then(function () {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+      return file.arrayBuffer();
+    }).then(function (buf) { return window.pdfjsLib.getDocument({ data: buf }).promise; }).then(function (doc) {
+      var testo = '', p = Promise.resolve();
+      for (var i = 1; i <= Math.min(doc.numPages, 8); i++) (function (n) {
+        p = p.then(function () { return doc.getPage(n); }).then(function (pg) { return pg.getTextContent(); }).then(function (tc) {
+          var righe = {};
+          tc.items.forEach(function (it) { var y = Math.round(it.transform[5] / 3) * 3; (righe[y] = righe[y] || []).push(it); });
+          Object.keys(righe).map(Number).sort(function (a, b) { return b - a; }).forEach(function (y) {
+            testo += righe[y].sort(function (a, b) { return a.transform[4] - b.transform[4]; }).map(function (it) { return it.str; }).join('  ') + '\n';
+          });
+        });
+      })(i);
+      return p.then(function () { return testo; });
+    });
+  }
+  function euro(n) { return '€ ' + numIt(n, 2); }
+  function oggiIso() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+
+  // ================================================================ bollette e prezzi
+  function vistaBollette() {
+    svuota(app); app.appendChild(caricamento('Carico le bollette…'));
+    chiama({ azione: 'direttivo_bollette' }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Prezzi attuali' }),
+        h('table', { class: 'sit' }, [
+          h('tr', {}, [h('td', { text: '⚡ Luce' }), h('td', { text: euro4(j.prezzi.luce.prezzo) + ' /kWh' })]),
+          h('tr', {}, [h('td', { text: '💧 Acqua' }), h('td', { text: euro4(j.prezzi.acqua.prezzo) + ' /m³' })])
+        ]),
+        h('p', { class: 'mut', style: 'margin:8px 0 0', text: 'Media delle bollette degli ultimi 12 mesi inserite, tutto compreso (IVA, oneri, quote fisse). Si usa per le stime delle nuove letture; il calcolo definitivo usa le bollette del periodo di ogni lettura.' })
+      ]));
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Aggiungi una bolletta' }),
+        h('div', { class: 'due' }, [
+          h('button', { type: 'button', class: 'tipo', onclick: function () { vistaNuovaBolletta('luce'); } }, [h('span', { class: 'tipo-ico', text: '⚡' }), h('strong', { text: 'Enel' }), h('small', { text: 'luce' })]),
+          h('button', { type: 'button', class: 'tipo', onclick: function () { vistaNuovaBolletta('acqua'); } }, [h('span', { class: 'tipo-ico', text: '💧' }), h('strong', { text: 'Abbanoa' }), h('small', { text: 'acqua' })])
+        ])
+      ]));
+      var lista = h('div', { class: 'card' }, [h('h2', { text: 'Bollette inserite' })]);
+      j.bollette.forEach(function (b) {
+        var r = h('div', { class: 'voce-lista' }, [
+          h('div', { class: 'vl-testa' }, [
+            h('strong', { text: (b.tipo === 'acqua' ? '💧 ' : '⚡ ') + b.dal + ' – ' + b.al }),
+            b.stima ? h('span', { class: 'stato warn', text: 'stima' }) : h('span', { class: 'vl-importo', text: euro(b.importo) })
+          ]),
+          h('p', { class: 'mut', style: 'margin:2px 0', text: (b.stima ? 'Prezzo stimato ' : numIt(b.consumo) + ' ' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + ' · ') + euro4(b.prezzo) + '/' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + (b.note ? ' · ' + b.note : '') }),
+          h('div', { class: 'row' }, [
+            b.file ? h('a', { href: b.file, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Apri' }) : null,
+            h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
+              if (!confirm('Eliminare la bolletta ' + b.dal + ' – ' + b.al + '? I prezzi verranno ricalcolati.')) return;
+              chiama({ azione: 'direttivo_bolletta_elimina', riga: b.riga }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
+            } })
+          ])
+        ]);
+        lista.appendChild(r);
+      });
+      app.appendChild(lista);
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
+  }
+  function euro4(n) { return '€ ' + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }
+
+  function vistaNuovaBolletta(tipo) {
+    svuota(app); app.appendChild(indietro(vistaBollette));
+    var unita = tipo === 'acqua' ? 'm³' : 'kWh', file = null;
+    var titolo = h('h2', { text: tipo === 'acqua' ? '💧 Bolletta Abbanoa' : '⚡ Bolletta Enel' });
+    var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () { if (fIn.files[0]) scelto(fIn.files[0]); } });
+    var statoPdf = h('div');
+    var dal = h('input', { type: 'date' }), al = h('input', { type: 'date' }), emessa = h('input', { type: 'hidden' });
+    var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0,00' });
+    var cons = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0' });
+    var note = h('input', { type: 'text', placeholder: 'Es. numero fattura' });
+    var lblCons = h('label', { text: 'Consumo del periodo (' + unita + ')' });
+    var prezzo = h('p', { class: 'mut' }), esito = h('div');
+    function n(x) { return Number(String(x).replace(/\./g, '').replace(',', '.')); }
+    function aggiorna() { var a = n(imp.value), c = n(cons.value); prezzo.textContent = a > 0 && c > 0 ? 'Prezzo: ' + euro4(a / c) + ' /' + unita : ''; }
+    imp.addEventListener('input', aggiorna); cons.addEventListener('input', aggiorna);
+    function scelto(f) {
+      svuota(statoPdf); statoPdf.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Leggo la bolletta…']));
+      leggiFile(f).then(function (x) {
+        file = x;
+        if (!x.pdf) { svuota(statoPdf); statoPdf.appendChild(msg('ok', 'Foto allegata: inserisci i dati a mano.')); return; }
+        return testoPdf(f).then(function (t) {
+          var r = window.LettoreBollette.leggi(t);
+          svuota(statoPdf);
+          if (!r) { statoPdf.appendChild(msg('warn', 'PDF allegato, ma non riconosco la bolletta: inserisci i dati a mano.')); return; }
+          if (r.tipo !== tipo) {
+            tipo = r.tipo; unita = tipo === 'acqua' ? 'm³' : 'kWh';
+            titolo.textContent = tipo === 'acqua' ? '💧 Bolletta Abbanoa' : '⚡ Bolletta Enel';
+            lblCons.textContent = 'Consumo del periodo (' + unita + ')';
+          }
+          if (r.dal) dal.value = r.dal; if (r.al) al.value = r.al; if (r.emessa) emessa.value = r.emessa;
+          if (r.importo) imp.value = numIt(r.importo, 2); if (r.consumo) cons.value = String(r.consumo);
+          if (r.note) note.value = r.note;
+          aggiorna();
+          var mancano = ['dal', 'al', 'importo', 'consumo'].filter(function (k) { return !r[k]; });
+          statoPdf.appendChild(msg(mancano.length ? 'warn' : 'ok', mancano.length ? 'Letti alcuni dati dal PDF; completa: ' + mancano.join(', ') + '.' : 'Dati letti dalla bolletta: controllali prima di salvare.'));
+        });
+      }).catch(function (e) { svuota(statoPdf); statoPdf.appendChild(msg('warn', e.message + ' Inserisci i dati a mano.')); });
+    }
+    var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Salva la bolletta', onclick: function () { salva(false); } });
+    function salva(forza) {
+      svuota(esito);
+      if (!dal.value || !al.value || !(n(imp.value) > 0) || !(n(cons.value) > 0)) { esito.appendChild(msg('err', 'Compila periodo, importo e consumo.')); return; }
+      btn.disabled = true; btn.textContent = 'Salvataggio e ricalcolo…';
+      chiama({ azione: 'direttivo_bolletta_salva', tipo: tipo, dal: dal.value, al: al.value, emessa: emessa.value, importo: n(imp.value), consumo: n(cons.value),
+        note: note.value, forza: forza, file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
+        btn.disabled = false; btn.textContent = 'Salva la bolletta';
+        if (!j.ok) {
+          esito.appendChild(msg('err', j.errore || 'Errore'));
+          if (j.sovrapposta) esito.appendChild(h('button', { type: 'button', class: 'big', text: 'Inserisci comunque', onclick: function () { salva(true); } }));
+          return;
+        }
+        svuota(app); app.appendChild(indietro(vistaBollette));
+        app.appendChild(h('div', { class: 'card successo' }, [
+          h('h2', { text: 'Bolletta salvata' }),
+          h('p', { text: 'Prezzo di questa bolletta: ' + euro4(j.prezzo) + ' /' + unita + '.' }),
+          h('p', { class: 'mut', text: 'Prezzi attuali: luce ' + euro4(j.prezzi.luce.prezzo) + '/kWh · acqua ' + euro4(j.prezzi.acqua.prezzo) + '/m³. Utenze dei soci ricalcolate e bolletta registrata tra le spese ordinarie.' }),
+          h('button', { class: 'pri big', type: 'button', text: 'Torna alle bollette', onclick: vistaBollette })
+        ]));
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Salva la bolletta'; esito.appendChild(msg('err', e.message)); });
+    }
+    app.appendChild(h('div', { class: 'card' }, [titolo,
+      h('button', { class: 'big', type: 'button', text: '📄 Carica il PDF della bolletta', onclick: function () { fIn.click(); } }), fIn, statoPdf,
+      h('div', { class: 'riga2' }, [h('div', {}, [h('label', { text: 'Dal' }), dal]), h('div', {}, [h('label', { text: 'Al' }), al])]),
+      h('label', { text: 'Importo del periodo (€, IVA compresa, senza acconti né mora)' }), imp,
+      lblCons, cons, prezzo,
+      h('label', { text: 'Note' }), note, emessa,
+      esito, btn]));
+  }
+
+  // ================================================================ registro spese
+  var interniAttuali = 0;
+  function vistaSpese(anno) {
+    svuota(app); app.appendChild(caricamento('Carico le spese…'));
+    chiama({ azione: 'direttivo_spese', anno: anno || new Date().getFullYear() }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      interniAttuali = j.interniAttuali;
+      var anni = h('div', { class: 'chips' });
+      j.anni.forEach(function (a) { anni.appendChild(h('button', { type: 'button', class: 'chip' + (a === j.anno ? ' on' : ''), text: String(a), onclick: function () { vistaSpese(a); } })); });
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Spese ' + j.anno }), anni,
+        h('table', { class: 'sit', style: 'margin-top:8px' }, [
+          h('tr', {}, [h('td', { text: 'Ordinarie (coperte dalla quota)' }), h('td', { text: euro(j.totali.ordinarie) })]),
+          h('tr', {}, [h('td', { text: 'Straordinarie (divise tra i soci)' }), h('td', { text: euro(j.totali.straordinarie) })]),
+          h('tr', { class: 'tot' }, [h('td', { text: 'Totale' }), h('td', { text: euro(j.totali.ordinarie + j.totali.straordinarie) })])
+        ]),
+        h('div', { class: 'due', style: 'margin-top:12px' }, [
+          h('button', { type: 'button', class: 'pri', text: '+ Spesa ordinaria', onclick: function () { vistaNuovaSpesa('ordinaria'); } }),
+          h('button', { type: 'button', class: 'pri', text: '+ Straordinaria', onclick: function () { vistaNuovaSpesa('straordinaria'); } })
+        ])
+      ]));
+      var lista = h('div', { class: 'card' }, [h('h2', { text: 'Elenco' })]);
+      if (!j.spese.length) lista.appendChild(h('p', { class: 'mut', text: 'Nessuna spesa registrata.' }));
+      j.spese.forEach(function (s) {
+        var straord = s.tipo === 'straordinaria', bolletta = /^Bolletta /.test(s.descrizione);
+        lista.appendChild(h('div', { class: 'voce-lista' }, [
+          h('div', { class: 'vl-testa' }, [h('strong', { text: s.descrizione }), h('span', { class: 'vl-importo', text: euro(s.importo) })]),
+          h('p', { class: 'mut', style: 'margin:2px 0' }, [
+            h('span', { class: 'stato ' + (straord ? 'warn' : ''), text: straord ? 'straordinaria' : 'ordinaria' }),
+            ' ' + s.data + (s.fornitore ? ' · ' + s.fornitore : '') + (straord ? ' · ' + euro(s.quota) + ' × ' + s.nInterni + ' interni' : '') + (s.note ? ' · ' + s.note : '')
+          ]),
+          h('div', { class: 'row' }, [
+            s.ricevuta ? h('a', { href: s.ricevuta, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Ricevuta' }) : null,
+            bolletta ? h('span', { class: 'mut', text: 'da Bollette' }) : h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
+              if (!confirm('Eliminare "' + s.descrizione + '"?' + (straord ? ' Verrà tolta anche la quota addebitata ai soci.' : ''))) return;
+              chiama({ azione: 'direttivo_spesa_elimina', id: s.id }).then(function (x) { if (x.ok) vistaSpese(j.anno); else alert(x.errore); }).catch(function (e) { alert(e.message); });
+            } })
+          ])
+        ]));
+      });
+      app.appendChild(lista);
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
+  }
+
+  function vistaNuovaSpesa(tipo) {
+    svuota(app); app.appendChild(indietro(function () { vistaSpese(); }));
+    var straord = tipo === 'straordinaria', file = null;
+    var data = h('input', { type: 'date', value: oggiIso() });
+    var descr = h('input', { type: 'text', placeholder: straord ? 'Es. riparazione pompa del depuratore' : 'Es. materiale per la pulizia' });
+    var forn = h('input', { type: 'text', placeholder: 'Facoltativo' });
+    var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0,00' });
+    var note = h('input', { type: 'text', placeholder: 'Facoltativo' });
+    var quota = h('p', { class: 'mut' }), statoF = h('div'), esito = h('div');
+    function n(x) { return Number(String(x).replace(/\./g, '').replace(',', '.')); }
+    imp.addEventListener('input', function () {
+      var a = n(imp.value);
+      quota.textContent = straord && a > 0 && interniAttuali ? 'Quota per interno: ' + euro(Math.round(a / interniAttuali * 100) / 100) + ' (diviso in parti uguali tra ' + interniAttuali + ' interni)' : '';
+    });
+    var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () {
+      if (!fIn.files[0]) return;
+      svuota(statoF); statoF.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Preparo il file…']));
+      leggiFile(fIn.files[0]).then(function (x) { file = x; svuota(statoF); statoF.appendChild(msg('ok', 'Ricevuta allegata: ' + x.nome)); })
+        .catch(function (e) { svuota(statoF); statoF.appendChild(msg('err', e.message)); });
+    } });
+    var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Salva la spesa', onclick: salva });
+    function salva() {
+      svuota(esito);
+      if (!data.value || !descr.value.trim() || !(n(imp.value) > 0)) { esito.appendChild(msg('err', 'Compila data, descrizione e importo.')); return; }
+      if (straord && !confirm('La spesa verrà divisa tra tutti gli interni e comparirà nella situazione di ogni socio. Confermi?')) return;
+      btn.disabled = true; btn.textContent = 'Salvataggio…';
+      chiama({ azione: 'direttivo_spesa_salva', tipo: tipo, data: data.value, descrizione: descr.value.trim(), fornitore: forn.value.trim(), importo: n(imp.value), note: note.value,
+        file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
+        btn.disabled = false; btn.textContent = 'Salva la spesa';
+        if (!j.ok) { esito.appendChild(msg('err', j.errore || 'Errore')); return; }
+        svuota(app); app.appendChild(indietro(function () { vistaSpese(); }));
+        app.appendChild(h('div', { class: 'card successo' }, [h('h2', { text: 'Spesa registrata' }),
+          straord ? h('p', { text: 'Addebitati ' + euro(j.quota) + ' a ciascuno dei ' + j.nInterni + ' interni. I soci la vedono nella loro situazione e la pagano con la causale "Spese extra".' }) : h('p', { text: 'Spesa ordinaria registrata.' }),
+          h('button', { class: 'pri big', type: 'button', text: 'Torna alle spese', onclick: function () { vistaSpese(); } })]));
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Salva la spesa'; esito.appendChild(msg('err', e.message)); });
+    }
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: straord ? 'Spesa straordinaria' : 'Spesa ordinaria' }),
+      h('p', { class: 'mut', text: straord ? 'Viene divisa in parti uguali tra tutti gli interni e addebitata a ogni socio.' : 'Già coperta dalla quota mensile: viene solo registrata.' }),
+      h('label', { text: 'Data' }), data, h('label', { text: 'Descrizione' }), descr, h('label', { text: 'Fornitore' }), forn,
+      h('label', { text: 'Importo totale (€)' }), imp, quota,
+      h('button', { class: 'big', type: 'button', style: 'margin-top:12px', text: '📎 Allega ricevuta o fattura (foto o PDF)', onclick: function () { fIn.click(); } }), fIn, statoF,
+      h('label', { text: 'Note' }), note, esito, btn]));
+    if (!interniAttuali) chiama({ azione: 'direttivo_spese' }).then(function (j) { if (j.ok) interniAttuali = j.interniAttuali; }).catch(function () { /* ok */ });
+  }
+
+  // ================================================================ situazione di tutti i soci
+  var ordineSit = 'totale';
+  function vistaSituazioneSoci() {
+    svuota(app); app.appendChild(caricamento('Calcolo la situazione dei soci…'));
+    chiama({ azione: 'direttivo_situazione_soci' }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Da incassare' }),
+        h('table', { class: 'sit' }, [
+          h('tr', {}, [h('td', { text: 'Utenze (saldo a oggi)' }), h('td', { text: euro(j.totali.utenze) })]),
+          h('tr', {}, [h('td', { text: 'Quote mensili ' + j.annoQuote }), h('td', { text: euro(j.totali.quote) })]),
+          h('tr', {}, [h('td', { text: 'Spese straordinarie' }), h('td', { text: euro(j.totali.straordinarie) })]),
+          h('tr', { class: 'tot' }, [h('td', { text: 'Totale' }), h('td', { text: euro(j.totali.totale) })])
+        ]),
+        j.aggiornato ? h('p', { class: 'mut', style: 'margin:8px 0 0', text: 'Utenze calcolate il ' + j.aggiornato + '.' }) : null
+      ]));
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno o nome', value: filtro });
+      var soloDebito = h('input', { type: 'checkbox', checked: true });
+      var lista = h('div', { class: 'lista' });
+      function riempi() {
+        svuota(lista);
+        var q = filtro.trim().toUpperCase();
+        j.righe.filter(function (r) { return (!q || r.interno === q || String(r.socio).toUpperCase().indexOf(q) >= 0) && (!soloDebito.checked || r.totale > 0.5); })
+          .sort(function (a, b) { return ordineSit === 'totale' ? b.totale - a.totale : Number(a.interno) - Number(b.interno); })
+          .forEach(function (r) {
+            function cifra(etic, v) { return h('span', { class: 'cifra' + (v > 0.5 ? ' deve' : v < -0.5 ? ' credito' : '') }, [etic + ' ', h('b', { text: v > 0.5 ? euro(v) : v < -0.5 ? '+' + euro(-v) : '✓' })]); }
+            lista.appendChild(h('div', { class: 'riga-sit' }, [
+              h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
+              h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)])
+            ]));
+          });
+        if (!lista.firstChild) lista.appendChild(h('p', { class: 'mut', text: 'Nessun socio da mostrare.' }));
+      }
+      cerca.addEventListener('input', function () { filtro = cerca.value; riempi(); });
+      soloDebito.addEventListener('change', riempi);
+      var ord = h('button', { type: 'button', class: 'piccolo', text: ordineSit === 'totale' ? 'Ordina per interno' : 'Ordina per importo', onclick: function () {
+        ordineSit = ordineSit === 'totale' ? 'interno' : 'totale'; ord.textContent = ordineSit === 'totale' ? 'Ordina per interno' : 'Ordina per importo'; riempi(); } });
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Soci' }), cerca,
+        h('div', { class: 'row', style: 'align-items:center;justify-content:space-between;margin-top:8px' }, [
+          h('label', { style: 'display:flex;gap:8px;align-items:center;margin:0;color:var(--tx)' }, [soloDebito, 'Solo chi deve qualcosa']), ord]),
+        lista]));
+      riempi();
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
 
   function toast(t) {

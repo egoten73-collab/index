@@ -1249,6 +1249,16 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       ]));
     }
 
+    if (j.straordinarie) {
+      var S = j.straordinarie, sa = Number(S.saldo) || 0;
+      var ts = h('table', { class: 'sit' });
+      S.voci.forEach(function (x) { ts.appendChild(riga(x.descrizione + ' (' + x.data + ')', '€ ' + numIt(x.quota, 2))); });
+      ts.appendChild(riga('Già versato', '€ ' + numIt(S.versato, 2)));
+      ts.appendChild(riga(sa > 0.5 ? 'Da versare' : sa < -0.5 ? 'A tuo credito' : 'Saldo', '€ ' + numIt(Math.abs(sa), 2), 'tot'));
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Spese straordinarie' }),
+        h('p', { class: 'mut', style: 'margin-top:0', text: 'Spese divise in parti uguali tra tutti gli interni. Per pagarle usa la causale "Spese extra".' }), ts]));
+    }
+
     var L = j.letture || {}, cl = h('div', { class: 'card' }, [h('h2', { text: 'Ultime letture' })]);
     cl.appendChild(h('table', { class: 'sit' }, [
       riga('💧 Acqua', L.acqua ? numIt(L.acqua.valore) + ' m³ – ' + L.acqua.data : 'nessuna'),
