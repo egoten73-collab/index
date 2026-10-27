@@ -1239,12 +1239,12 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       });
       var diff = Number(q.differenza) || 0;
       app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: 'Quote mensili ' + q.anno }),
+        h('h2', { text: 'Quote ' + q.anno }),
         griglia,
         h('table', { class: 'sit', style: 'margin-top:10px' }, [
-          riga('Quote dovute ad oggi', '€ ' + numIt(q.dovuto, 2)),
+          riga('Quota annuale', '€ ' + numIt(q.dovuto, 2)),
           riga('Quote versate', '€ ' + numIt(q.pagato, 2)),
-          riga(diff < -0.5 ? 'Arretrato' : diff > 0.5 ? 'Versato in anticipo' : 'Saldo', '€ ' + numIt(Math.abs(diff), 2), 'tot')
+          riga(diff < -0.5 ? 'Da versare' : diff > 0.5 ? 'Versato in più' : 'Saldo', '€ ' + numIt(Math.abs(diff), 2), 'tot')
         ])
       ]));
     }
