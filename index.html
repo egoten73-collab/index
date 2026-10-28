@@ -596,6 +596,8 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   function indovinaCategoria(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase();
     if (/arretrat|pregress|morosit/.test(t)) return 'Arretrati';
+    // voci dei solleciti dell'amministratore (anni passati): stanno negli arretrati
+    if (/depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t)) return 'Arretrati';
     if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) return 'Spese extra';
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) return 'Utenze';
     if (/quota|ordinari|condomin|\brata\b|annuale|associativ|spese\s+general/.test(t)) return 'Quota ordinaria';
@@ -603,6 +605,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   }
 
   function categoriaDaChunk(chunk) {
+    if (indovinaCategoria(chunk) === 'Arretrati') return 'Arretrati';
     var t = senzaAccenti(String(chunk)).toLowerCase();
     var isExtra = /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion/.test(t);
     var isUtenze = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t);
@@ -619,10 +622,11 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   // Categorie citate nella causale (una distinta puo' pagare insieme quota e utenze).
   function categorieCitate(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase(), out = [];
-    if (/quota|ordinari|mensilit|\brata\b|canone/.test(t)) out.push('Quota ordinaria');
+    var vecchie = /depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t);
+    if (/quota|ordinari|mensilit|canone/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
-    if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
-    if (/arretrat|pregress|morosit/.test(t)) out.push('Arretrati');
+    if (!vecchie && /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
+    if (vecchie || /arretrat|pregress|morosit/.test(t)) out.push('Arretrati');
     return out;
   }
 
