@@ -1264,6 +1264,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       var ta = h('table', { class: 'sit' });
       A.voci.forEach(function (x) { ta.appendChild(riga(x.descrizione, '€ ' + numIt(x.importo, 2))); });
       ta.appendChild(riga('Già versato', '€ ' + numIt(A.versato, 2)));
+      if (Number(A.perVecchioSocio) > 0.005) ta.appendChild(riga('Versato per il debito del vecchio socio', '€ ' + numIt(A.perVecchioSocio, 2)));
       ta.appendChild(riga(sar > 0.5 ? 'Da versare' : sar < -0.5 ? 'A tuo credito' : 'Saldato', sar > 0.5 || sar < -0.5 ? '€ ' + numIt(Math.abs(sar), 2) : '✓', 'tot'));
       app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Arretrati anni precedenti' }),
         h('p', { class: 'mut', style: 'margin-top:0', text: 'Importi non pagati negli anni passati per questo interno. Per pagarli usa la causale "Arretrati".' }), ta]));
