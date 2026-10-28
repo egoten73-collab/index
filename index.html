@@ -595,6 +595,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   // ------------------------------------------------------------------ categorie
   function indovinaCategoria(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase();
+    if (/arretrat|pregress|morosit/.test(t)) return 'Arretrati';
     if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) return 'Spese extra';
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) return 'Utenze';
     if (/quota|ordinari|condomin|\brata\b|annuale|associativ|spese\s+general/.test(t)) return 'Quota ordinaria';
@@ -621,6 +622,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     if (/quota|ordinari|mensilit|\brata\b|canone/.test(t)) out.push('Quota ordinaria');
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
     if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
+    if (/arretrat|pregress|morosit/.test(t)) out.push('Arretrati');
     return out;
   }
 
@@ -784,7 +786,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
   var MAX_BYTE = 12 * 1024 * 1024;
-  var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'];
+  var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Arretrati', 'Altro'];
 
   var app = document.getElementById('app');
   // ---- COLLEGAMENTO FISSO -------------------------------------------------
@@ -1237,16 +1239,30 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       q.mesi.forEach(function (m) {
         griglia.appendChild(h('div', { class: 'mq' + (m.importo > 0 ? ' pag' : '') }, [m.mese, h('b', { text: m.importo > 0 ? '€ ' + numIt(m.importo, 0) : '–' })]));
       });
-      var diff = Number(q.differenza) || 0;
-      app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: 'Quote ' + q.anno }),
-        griglia,
-        h('table', { class: 'sit', style: 'margin-top:10px' }, [
-          riga('Quota annuale', '€ ' + numIt(q.dovuto, 2)),
-          riga('Quote versate', '€ ' + numIt(q.pagato, 2)),
-          riga(diff < -0.5 ? 'Da versare' : diff > 0.5 ? 'Versato in più' : 'Saldo', '€ ' + numIt(Math.abs(diff), 2), 'tot')
-        ])
-      ]));
+      var diff = Number(q.differenza) || 0, resto = Number(q.restoAnno) || 0;
+      var oggiQ = q.dovutoOggi !== undefined ? Number(q.dovutoOggi) || 0 : Number(q.dovuto) || 0;
+      var tq = h('table', { class: 'sit', style: 'margin-top:10px' }, [
+        riga('Quota annuale', '€ ' + numIt(q.dovuto, 2)),
+        riga('Dovuta ad oggi (mesi già scaduti)', '€ ' + numIt(oggiQ, 2)),
+        riga('Quote versate', '€ ' + numIt(q.pagato, 2)),
+        riga(diff < -0.5 ? 'In ritardo' : diff > 0.5 ? 'Versato in anticipo' : 'In regola', diff < -0.5 || diff > 0.5 ? '€ ' + numIt(Math.abs(diff), 2) : '✓', 'tot')
+      ]);
+      var prec = Number(q.anniPrecedenti) || 0;
+      if (prec > 0.5) tq.appendChild(riga('Quote non pagate degli anni precedenti', '€ ' + numIt(prec, 2), 'tot'));
+      else if (prec < -0.5) tq.appendChild(riga('Credito dagli anni precedenti', '€ ' + numIt(-prec, 2)));
+      if (resto > 0.5) tq.appendChild(riga('Da versare entro fine anno', '€ ' + numIt(resto, 2)));
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Quote ' + q.anno }), griglia, tq,
+        h('p', { class: 'mut', text: 'Il mese in corso e quelli successivi non sono ancora scaduti.' })]));
+    }
+
+    if (j.arretrati) {
+      var A = j.arretrati, sar = Number(A.saldo) || 0;
+      var ta = h('table', { class: 'sit' });
+      A.voci.forEach(function (x) { ta.appendChild(riga(x.descrizione, '€ ' + numIt(x.importo, 2))); });
+      ta.appendChild(riga('Già versato', '€ ' + numIt(A.versato, 2)));
+      ta.appendChild(riga(sar > 0.5 ? 'Da versare' : sar < -0.5 ? 'A tuo credito' : 'Saldato', sar > 0.5 || sar < -0.5 ? '€ ' + numIt(Math.abs(sar), 2) : '✓', 'tot'));
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Arretrati anni precedenti' }),
+        h('p', { class: 'mut', style: 'margin-top:0', text: 'Importi non pagati negli anni passati per questo interno. Per pagarli usa la causale "Arretrati".' }), ta]));
     }
 
     if (j.straordinarie) {

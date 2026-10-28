@@ -1024,7 +1024,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('h2', { text: 'Da incassare' }),
         h('table', { class: 'sit' }, [
           h('tr', {}, [h('td', { text: 'Utenze (saldo a oggi)' }), h('td', { text: euro(j.totali.utenze) })]),
-          h('tr', {}, [h('td', { text: 'Quote mensili ' + j.annoQuote }), h('td', { text: euro(j.totali.quote) })]),
+          h('tr', {}, [h('td', { text: 'Quote annuali ' + j.annoQuote }), h('td', { text: euro(j.totali.quote) })]),
           h('tr', {}, [h('td', { text: 'Spese straordinarie' }), h('td', { text: euro(j.totali.straordinarie) })]),
           h('tr', { class: 'tot' }, [h('td', { text: 'Totale' }), h('td', { text: euro(j.totali.totale) })])
         ]),
