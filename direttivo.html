@@ -164,6 +164,8 @@ button.piccolo{padding:6px 12px;font-size:13px;border-radius:10px}
 .chip.on{border-color:var(--oro);color:var(--oro2)}
 .riga2>div{min-width:0}
 input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}
+.scelta{display:inline-flex!important;align-items:center;gap:8px;margin:4px 18px 4px 0!important;text-transform:none!important;letter-spacing:0!important;font-size:15px!important;color:inherit!important}
+.scelta input{width:auto!important;margin:0}
 
 </style>
 </head>
@@ -830,16 +832,35 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
           h('button', { type: 'button', class: 'tipo', onclick: function () { vistaNuovaBolletta('acqua'); } }, [h('span', { class: 'tipo-ico', text: '💧' }), h('strong', { text: 'Abbanoa' }), h('small', { text: 'acqua' })])
         ])
       ]));
-      var lista = h('div', { class: 'card' }, [h('h2', { text: 'Bollette inserite' })]);
+      var lista = h('div', { class: 'card' }, [h('h2', { text: 'Bollette inserite' }),
+        j.daPagare > 0.005 ? msg('warn', 'Bollette da pagare: ' + euro(j.daPagare)) : null]);
       j.bollette.forEach(function (b) {
+        function segna(pagata) {
+          var data = '';
+          if (pagata) {
+            var oggi = new Date(), def = ('0' + oggi.getDate()).slice(-2) + '/' + ('0' + (oggi.getMonth() + 1)).slice(-2) + '/' + oggi.getFullYear();
+            var t = prompt('Data del pagamento (gg/mm/aaaa):', def);
+            if (t === null) return;
+            var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t.trim());
+            if (!m) { alert('Data non valida: usa gg/mm/aaaa.'); return; }
+            data = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+          }
+          chiama({ azione: 'direttivo_bolletta_pagata', riga: b.riga, pagata: pagata, data: data }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
+        }
+        var statoPag = b.stima ? null : b.pagata === true ? h('span', { class: 'stato ok', text: '✓ pagata il ' + b.pagataIl })
+          : b.pagata === false ? h('span', { class: 'stato err', text: 'da pagare' }) : h('span', { class: 'stato', text: 'pagamento non indicato' });
         var r = h('div', { class: 'voce-lista' }, [
           h('div', { class: 'vl-testa' }, [
             h('strong', { text: (b.tipo === 'acqua' ? '💧 ' : '⚡ ') + b.dal + ' – ' + b.al }),
             b.stima ? h('span', { class: 'stato warn', text: 'stima' }) : h('span', { class: 'vl-importo', text: euro(b.importo) })
           ]),
           h('p', { class: 'mut', style: 'margin:2px 0', text: (b.stima ? 'Prezzo stimato ' : numIt(b.consumo) + ' ' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + ' · ') + euro4(b.prezzo) + '/' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + (b.note ? ' · ' + b.note : '') }),
+          statoPag ? h('p', { style: 'margin:4px 0' }, [statoPag]) : null,
           h('div', { class: 'row' }, [
             b.file ? h('a', { href: b.file, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Apri' }) : null,
+            b.stima ? null : b.pagata === true
+              ? h('button', { type: 'button', class: 'piccolo', text: 'Segna da pagare', onclick: function () { segna(false); } })
+              : h('button', { type: 'button', class: 'piccolo', text: '✓ Segna pagata', onclick: function () { segna(true); } }),
             h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
               if (!confirm('Eliminare la bolletta ' + b.dal + ' – ' + b.al + '? I prezzi verranno ricalcolati.')) return;
               chiama({ azione: 'direttivo_bolletta_elimina', riga: b.riga }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
@@ -863,6 +884,11 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0,00' });
     var cons = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0' });
     var note = h('input', { type: 'text', placeholder: 'Es. numero fattura' });
+    var pagIl = h('input', { type: 'date' });
+    var rPag = h('input', { type: 'radio', name: 'pag' }), rNo = h('input', { type: 'radio', name: 'pag' });
+    var bloccoData = h('div', { class: 'hide' }, [h('label', { text: 'Pagata il' }), pagIl]);
+    function mostraData() { svuota(esito); bloccoData.className = rPag.checked ? '' : 'hide'; if (rPag.checked && !pagIl.value) pagIl.value = new Date().toISOString().slice(0, 10); }
+    rPag.addEventListener('change', mostraData); rNo.addEventListener('change', mostraData);
     var lblCons = h('label', { text: 'Consumo del periodo (' + unita + ')' });
     var prezzo = h('p', { class: 'mut' }), esito = h('div');
     function n(x) { return Number(String(x).replace(/\./g, '').replace(',', '.')); }
@@ -895,9 +921,10 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     function salva(forza) {
       svuota(esito);
       if (!dal.value || !al.value || !(n(imp.value) > 0) || !(n(cons.value) > 0)) { esito.appendChild(msg('err', 'Compila periodo, importo e consumo.')); return; }
+      if (!rPag.checked && !rNo.checked) { esito.appendChild(msg('err', 'Indica se la bolletta è già stata pagata o è da pagare.')); return; }
       btn.disabled = true; btn.textContent = 'Salvataggio e ricalcolo…';
       chiama({ azione: 'direttivo_bolletta_salva', tipo: tipo, dal: dal.value, al: al.value, emessa: emessa.value, importo: n(imp.value), consumo: n(cons.value),
-        note: note.value, forza: forza, file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
+        note: note.value, forza: forza, pagata: rPag.checked, pagataIl: rPag.checked ? pagIl.value : '', file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
         btn.disabled = false; btn.textContent = 'Salva la bolletta';
         if (!j.ok) {
           esito.appendChild(msg('err', j.errore || 'Errore'));
@@ -919,6 +946,9 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       h('label', { text: 'Importo del periodo (€, IVA compresa, senza acconti né mora)' }), imp,
       lblCons, cons, prezzo,
       h('label', { text: 'Note' }), note, emessa,
+      h('label', { text: 'Pagamento' }),
+      h('div', { class: 'row' }, [h('label', { class: 'scelta' }, [rPag, ' Già pagata']), h('label', { class: 'scelta' }, [rNo, ' Da pagare'])]),
+      bloccoData,
       esito, btn]));
   }
 
@@ -1024,8 +1054,10 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('h2', { text: 'Da incassare' }),
         h('table', { class: 'sit' }, [
           h('tr', {}, [h('td', { text: 'Utenze (saldo a oggi)' }), h('td', { text: euro(j.totali.utenze) })]),
-          h('tr', {}, [h('td', { text: 'Quote annuali ' + j.annoQuote }), h('td', { text: euro(j.totali.quote) })]),
+          h('tr', {}, [h('td', { text: 'Quote scadute non pagate' }), h('td', { text: euro(j.totali.quote) })]),
           h('tr', {}, [h('td', { text: 'Spese straordinarie' }), h('td', { text: euro(j.totali.straordinarie) })]),
+          h('tr', {}, [h('td', { text: 'Arretrati anni precedenti' }), h('td', { text: euro(j.totali.arretrati || 0) })]),
+          j.totali.exSoci ? h('tr', {}, [h('td', { text: 'Debiti di vecchi soci (a parte, non nel totale)' }), h('td', { text: euro(j.totali.exSoci) })]) : null,
           h('tr', { class: 'tot' }, [h('td', { text: 'Totale' }), h('td', { text: euro(j.totali.totale) })])
         ]),
         j.aggiornato ? h('p', { class: 'mut', style: 'margin:8px 0 0', text: 'Utenze calcolate il ' + j.aggiornato + '.' }) : null
@@ -1042,7 +1074,8 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
             function cifra(etic, v) { return h('span', { class: 'cifra' + (v > 0.5 ? ' deve' : v < -0.5 ? ' credito' : '') }, [etic + ' ', h('b', { text: v > 0.5 ? euro(v) : v < -0.5 ? '+' + euro(-v) : '✓' })]); }
             lista.appendChild(h('div', { class: 'riga-sit' }, [
               h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
-              h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)])
+              h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)].concat(r.arretrati ? [cifra('Arretr.', r.arretrati)] : [])
+                .concat(r.exSocio ? [h('span', { class: 'cifra', text: 'Vecchio socio ' + r.exSocio.socio + ': ' + euro(r.exSocio.saldo) })] : []))
             ]));
           });
         if (!lista.firstChild) lista.appendChild(h('p', { class: 'mut', text: 'Nessun socio da mostrare.' }));
