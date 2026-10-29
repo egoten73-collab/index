@@ -388,7 +388,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 
   var MESI_NOMI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio',
     'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
-  var MESI_ABBR = { gen: 1, feb: 2, mar: 3, apr: 4, mag: 5, giu: 6, lug: 7, ago: 8, set: 9, sett: 9, ott: 10, nov: 11, dic: 12 };
+  var MESI_ABBR = { gen: 1, genn: 1, feb: 2, febb: 2, febbr: 2, mar: 3, apr: 4, mag: 5, magg: 5, giu: 6, lug: 7, lugl: 7, ago: 8, agos: 8, set: 9, sett: 9, ott: 10, nov: 11, dic: 12 };
   var MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 
   function senzaAccenti(s) {
@@ -476,19 +476,70 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   }
 
   // ------------------------------------------------------------------ causale / ordinante / interni
-  function trovaCausale(testo) {
-    var t = String(testo);
-    var m = /causale(?:\s+del\s+(?:versamento|bonifico|pagamento))?\s*[:\-]?\s*([^\n]*(?:\n(?!\s*(?:iban|data|importo|beneficiario|ordinante|cro|trn|commission|spese|valuta|totale)\b)[^\n]+){0,2})/i.exec(t);
-    if (m && m[1].trim()) return m[1].replace(/\s+/g, ' ').trim();
-    m = /(?:descrizione|motivo|oggetto)\s*[:\-]?\s*([^\n]+)/i.exec(t);
-    if (m && m[1].trim()) return m[1].replace(/\s+/g, ' ').trim();
-    return '';
+  // Etichette che introducono il testo libero scritto da chi paga.
+  // Poste Italiane: "Comunicazioni al beneficiario"; banche: "Causale", "Descrizione", "Informazioni per il beneficiario"...
+  var RE_ETICH_BENEF = /(?:comunicazion[ei]|informazion[ei]|messaggio|note|dettagli)\s+(?:al|per\s+il|per\s+beneficiario|beneficiario)\s*(?:beneficiario)?/i;
+  var STOP_CAUSALE = /^\s*(?:saluti|distinti|cordiali|bancoposta|poste\s+italiane|descrizione|motivo|oggetto|iban|data|importo|beneficiario|ordinante|cro|trn|commission|spese|valuta|totale|bic|swift|codice|numero|n\.\s*operazione|id\s|riferimento|esito|stato|canale|conto|addebit)/i;
+
+  function testoDopo(t, re, maxRighe) {
+    var m = re.exec(t);
+    if (!m) return '';
+    var righe = t.slice(m.index + m[0].length).split('\n'), out = [];
+    var prima = righe[0].replace(/^\s*[:\-]?\s*/, '');
+    if (prima.trim()) out.push(prima);
+    for (var k = 1; k < righe.length && out.length < maxRighe; k++) {
+      var r = righe[k];
+      if (!r.trim()) { if (out.length) break; else continue; }
+      if (STOP_CAUSALE.test(r) || RE_ETICH_BENEF.test(r) || /^\s*causale\b/i.test(r) || /^\s*(?:comunicazion|informazion)\w*\s+al\s*$/i.test(r)) break;
+      out.push(r);
+    }
+    return out.join(' ').replace(/\s+/g, ' ').trim();
   }
 
+  function causaleGenerica(c) {
+    return !c || /^(?:bonifico|bonifico\s+sepa|bonifico\s+ordinario|giroconto|postagiro|pagamento|versamento|sct|instant|bonifico\s+istantaneo)?\s*\.?$/i.test(c.trim());
+  }
+
+  function trovaCausale(testo) {
+    var t = String(testo), parti = [];
+    var comunic = testoDopo(t, RE_ETICH_BENEF, 3);
+    var caus = testoDopo(t, /causale(?:\s+del\s+(?:versamento|bonifico|pagamento))?(?=\s*[:\-\n]|\s)/i, 3);
+    if (!causaleGenerica(comunic)) parti.push(comunic);
+    if (!causaleGenerica(caus) && parti.indexOf(caus) < 0) parti.push(caus);
+    if (!parti.length) {
+      var d = testoDopo(t, /(?:descrizione|motivo|oggetto)\b/i, 2);
+      if (!causaleGenerica(d)) parti.push(d);
+    }
+    if (!parti.length) {
+      // nessuna etichetta: cerca la riga che parla di mesi, anno, quota o interno
+      var righe = t.split('\n').filter(function (r) {
+        var x = senzaAccenti(r).toLowerCase();
+        if (/iban|beneficiario|golfo dei fenici|\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b/.test(x)) return false;
+        return new RegExp('\\b' + RE_MESE + '\\b|\\bquot[ae]\\b|\\bint(?:erno)?\\b\\.?\\s*\\d|\\butenz|\\barretrat').test(x);
+      });
+      if (righe.length) parti.push(righe.slice(0, 2).join(' ').replace(/\s+/g, ' ').trim());
+    }
+    return parti.join(' – ');
+  }
+
+
   function trovaOrdinante(testo) {
-    var m = /(?:ordinante|disponente|eseguito\s+da|intestatario(?:\s+del\s+conto)?|versante|nome\s+(?:e\s+cognome\s+)?del\s+versante|da\s*:)\s*[:\-]?\s*([^\n]{3,70})/i.exec(String(testo));
+    var t = String(testo), m;
+    // Poste / molte banche: sezione "ORDINANTE" con "Intestazione:" (prima della sezione BENEFICIARIO)
+    m = /\bordinante\b([\s\S]*?)(?:\bbeneficiario\b|$)/i.exec(t);
+    if (m) {
+      var x = /(?:intestazione|intestatario|nominativo|nome)\s*:?\s*\n?\s*([^\n:]{3,70})/i.exec(m[1]);
+      if (x && !/iban|conto|\d{6}/i.test(x[1])) return x[1].replace(/\s+/g, ' ').trim();
+    }
+    var re = /(?:ordinante|disponente|eseguito\s+da|intestatario(?:\s+del\s+conto)?|versante|nome\s+(?:e\s+cognome\s+)?del\s+versante|da\s*:)[ \t]*[:\-]?[ \t]*([^\n]{3,70})/gi;
+    while ((m = re.exec(t))) {
+      var v = m[1].replace(/\s+/g, ' ').trim();
+      if (v && !/iban|conto|addebito|\d{6}/i.test(v)) return v;
+    }
+    m = /\bgentile\s+(?:sig\.?\w*\s+|cliente\s+)?([A-Za-zÀ-ÿ'][^,\n]{2,60}),/i.exec(t);
     return m ? m[1].replace(/\s+/g, ' ').trim() : '';
   }
+
 
   function trovaInterni(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase();
@@ -505,7 +556,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   }
 
   // ------------------------------------------------------------------ mesi
-  var RE_MESE = '(' + MESI_NOMI.map(senzaAccenti).join('|') + '|sett|gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic)';
+  var RE_MESE = '(' + MESI_NOMI.map(senzaAccenti).join('|') + '|febbr|febb|genn|magg|lugl|agos|sett|gen|feb|mar|apr|mag|giu|lug|ago|set|ott|nov|dic)';
 
   function meseNum(tok) {
     var i = MESI_NOMI.map(senzaAccenti).indexOf(tok);
@@ -633,7 +684,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   function trovaVoci(causale, totale, annoDefault) {
     var globali = trovaMesi(causale, annoDefault);
     var base = {
-      categoria: indovinaCategoria(causale), importo: totale, mesi: globali,
+      categoria: (function (c) { return c === 'Altro' && globali.length ? 'Quota ordinaria' : c; })(indovinaCategoria(causale)), importo: totale, mesi: globali,
       acconto: haAcconto(causale), note: ''
     };
     // Causale mista senza importi separabili: una voce per categoria, importi da indicare.
@@ -752,7 +803,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     var interni = trovaInterni(causale || '');
     if (!interni.length) interni = trovaInterni(testo);
     var nomeTesto = ordinante || '';
-    var senzaBenef = testo.split('\n').filter(function (l) { return !/beneficiario|a favore di|golfo dei fenici|iban|c\/c/i.test(l); }).join('\n');
+    var senzaBenef = testo.split('\n').filter(function (l) { return RE_ETICH_BENEF.test(l) || !/beneficiario|a favore di|golfo dei fenici|iban|c\/c/i.test(l); }).join('\n') + '\n' + causale;
     var socio = (soci && soci.length) ? abbinaSocio(interni, nomeTesto, senzaBenef, soci) : { socio: null, candidati: [], avvisi: [], metodo: null };
     var voci = trovaVoci(causale || testo, imp.totale, anno);
     var avvisi = socio.avvisi.slice();

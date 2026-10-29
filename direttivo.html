@@ -835,19 +835,11 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       var lista = h('div', { class: 'card' }, [h('h2', { text: 'Bollette inserite' }),
         j.daPagare > 0.005 ? msg('warn', 'Bollette da pagare: ' + euro(j.daPagare)) : null]);
       j.bollette.forEach(function (b) {
-        function segna(pagata) {
-          var data = '';
-          if (pagata) {
-            var oggi = new Date(), def = ('0' + oggi.getDate()).slice(-2) + '/' + ('0' + (oggi.getMonth() + 1)).slice(-2) + '/' + oggi.getFullYear();
-            var t = prompt('Data del pagamento (gg/mm/aaaa):', def);
-            if (t === null) return;
-            var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(t.trim());
-            if (!m) { alert('Data non valida: usa gg/mm/aaaa.'); return; }
-            data = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
-          }
-          chiama({ azione: 'direttivo_bolletta_pagata', riga: b.riga, pagata: pagata, data: data }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
+        function segnaDaPagare() {
+          if (!confirm('Segnare la bolletta come da pagare? Il collegamento alla ricevuta verrà tolto (il file resta in Drive).')) return;
+          chiama({ azione: 'direttivo_bolletta_pagata', riga: b.riga, pagata: false }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
         }
-        var statoPag = b.stima ? null : b.pagata === true ? h('span', { class: 'stato ok', text: '✓ pagata il ' + b.pagataIl })
+        var statoPag = b.stima ? null : b.pagata === true ? h('span', { class: 'stato ' + (b.ricevuta ? 'ok' : 'warn'), text: '✓ pagata il ' + b.pagataIl + (b.ricevuta ? '' : ' · senza ricevuta') })
           : b.pagata === false ? h('span', { class: 'stato err', text: 'da pagare' }) : h('span', { class: 'stato', text: 'pagamento non indicato' });
         var r = h('div', { class: 'voce-lista' }, [
           h('div', { class: 'vl-testa' }, [
@@ -857,10 +849,11 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
           h('p', { class: 'mut', style: 'margin:2px 0', text: (b.stima ? 'Prezzo stimato ' : numIt(b.consumo) + ' ' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + ' · ') + euro4(b.prezzo) + '/' + (b.tipo === 'acqua' ? 'm³' : 'kWh') + (b.note ? ' · ' + b.note : '') }),
           statoPag ? h('p', { style: 'margin:4px 0' }, [statoPag]) : null,
           h('div', { class: 'row' }, [
-            b.file ? h('a', { href: b.file, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Apri' }) : null,
+            b.file ? h('a', { href: b.file, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Bolletta' }) : null,
+            b.ricevuta ? h('a', { href: b.ricevuta, target: '_blank', rel: 'noopener', class: 'link-foto', text: '🧾 Ricevuta' }) : null,
             b.stima ? null : b.pagata === true
-              ? h('button', { type: 'button', class: 'piccolo', text: 'Segna da pagare', onclick: function () { segna(false); } })
-              : h('button', { type: 'button', class: 'piccolo', text: '✓ Segna pagata', onclick: function () { segna(true); } }),
+              ? h('button', { type: 'button', class: 'piccolo', text: 'Segna da pagare', onclick: segnaDaPagare })
+              : h('button', { type: 'button', class: 'piccolo', text: '📎 Carica ricevuta pagamento', onclick: function () { vistaPagamentoBolletta(b); } }),
             h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
               if (!confirm('Eliminare la bolletta ' + b.dal + ' – ' + b.al + '? I prezzi verranno ricalcolati.')) return;
               chiama({ azione: 'direttivo_bolletta_elimina', riga: b.riga }).then(function (x) { if (x.ok) vistaBollette(); else alert(x.errore); }).catch(function (e) { alert(e.message); });
@@ -872,6 +865,58 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       app.appendChild(lista);
     }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
+  /** Riquadro "ricevuta del pagamento": file obbligatorio, data (letta dal PDF se possibile), controllo importo. */
+  function boxRicevuta(importoAtteso, alCambio) {
+    var file = null, data = h('input', { type: 'date' }), stato = h('div');
+    var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () { if (fIn.files[0]) scelto(fIn.files[0]); } });
+    function scelto(f) {
+      if (alCambio) alCambio();
+      svuota(stato); stato.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Leggo la ricevuta…']));
+      leggiFile(f).then(function (x) {
+        file = x;
+        svuota(stato); stato.appendChild(msg('ok', '📎 ' + x.nome));
+        if (!x.pdf) { stato.appendChild(h('p', { class: 'mut', text: 'Foto allegata: controlla la data del pagamento.' })); return; }
+        return testoPdf(f).then(function (t) {
+          var m = /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](20\d{2})/.exec(t);
+          if (m) data.value = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+          var imp = [], re = /(?:€|eur|euro|\be\b)?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+\.\d{2})\s*(?:€|eur|euro|\be\b)?/gi, k;
+          while ((k = re.exec(t))) imp.push(Number(k[1].indexOf(',') >= 0 ? k[1].replace(/\./g, '').replace(',', '.') : k[1]));
+          if (importoAtteso && imp.length) {
+            var trovato = imp.some(function (v) { return Math.abs(v - importoAtteso) < 0.01; });
+            stato.appendChild(msg(trovato ? 'ok' : 'warn', trovato ? 'Importo della ricevuta uguale alla bolletta (' + euro(importoAtteso) + ').'
+              : 'Attenzione: nella ricevuta non trovo l\'importo della bolletta (' + euro(importoAtteso) + '). Controlla che sia la ricevuta giusta.'));
+          }
+        }).catch(function () { stato.appendChild(h('p', { class: 'mut', text: 'Non riesco a leggere il PDF: controlla la data a mano.' })); });
+      }).catch(function (e) { svuota(stato); stato.appendChild(msg('err', e.message)); });
+    }
+    return {
+      el: h('div', {}, [
+        h('button', { class: 'big', type: 'button', text: '🧾 Carica la ricevuta del pagamento', onclick: function () { fIn.click(); } }), fIn, stato,
+        h('label', { text: 'Pagata il' }), data]),
+      file: function () { return file; }, data: function () { return data.value; },
+      dati: function () { return { ric_base64: file ? file.base64 : '', ric_mime: file ? file.mime : '', ric_nome: file ? file.nome : '' }; }
+    };
+  }
+
+  function vistaPagamentoBolletta(b) {
+    svuota(app); app.appendChild(indietro(vistaBollette));
+    var esito = h('div'), box = boxRicevuta(b.importo, function () { svuota(esito); });
+    var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Segna come pagata', onclick: function () {
+      svuota(esito);
+      if (!box.file()) { esito.appendChild(msg('err', 'Allega la ricevuta del pagamento (PDF o foto).')); return; }
+      if (!box.data()) { esito.appendChild(msg('err', 'Indica la data del pagamento.')); return; }
+      btn.disabled = true; btn.textContent = 'Salvataggio…';
+      chiama(Object.assign({ azione: 'direttivo_bolletta_pagata', riga: b.riga, pagata: true, data: box.data() }, box.dati())).then(function (x) {
+        if (x.ok) vistaBollette(); else { btn.disabled = false; btn.textContent = 'Segna come pagata'; esito.appendChild(msg('err', x.errore)); }
+      }).catch(function (e) { btn.disabled = false; btn.textContent = 'Segna come pagata'; esito.appendChild(msg('err', e.message)); });
+    } });
+    app.appendChild(h('div', { class: 'card' }, [
+      h('h2', { text: 'Pagamento bolletta' }),
+      h('p', { text: (b.tipo === 'acqua' ? '💧 Abbanoa ' : '⚡ Enel ') + b.dal + ' – ' + b.al + ' · ' + euro(b.importo) }),
+      h('p', { class: 'mut', text: 'Carica la ricevuta del bonifico o del pagamento: viene salvata in Drive insieme alla bolletta.' }),
+      box.el, esito, btn]));
+  }
+
   function euro4(n) { return '€ ' + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }
 
   function vistaNuovaBolletta(tipo) {
@@ -884,10 +929,10 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0,00' });
     var cons = h('input', { type: 'text', inputmode: 'decimal', placeholder: '0' });
     var note = h('input', { type: 'text', placeholder: 'Es. numero fattura' });
-    var pagIl = h('input', { type: 'date' });
     var rPag = h('input', { type: 'radio', name: 'pag' }), rNo = h('input', { type: 'radio', name: 'pag' });
-    var bloccoData = h('div', { class: 'hide' }, [h('label', { text: 'Pagata il' }), pagIl]);
-    function mostraData() { svuota(esito); bloccoData.className = rPag.checked ? '' : 'hide'; if (rPag.checked && !pagIl.value) pagIl.value = new Date().toISOString().slice(0, 10); }
+    var ric = boxRicevuta(null, function () { svuota(esito); });
+    var bloccoData = h('div', { class: 'hide' }, [ric.el]);
+    function mostraData() { svuota(esito); bloccoData.className = rPag.checked ? '' : 'hide'; }
     rPag.addEventListener('change', mostraData); rNo.addEventListener('change', mostraData);
     var lblCons = h('label', { text: 'Consumo del periodo (' + unita + ')' });
     var prezzo = h('p', { class: 'mut' }), esito = h('div');
@@ -922,9 +967,11 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       svuota(esito);
       if (!dal.value || !al.value || !(n(imp.value) > 0) || !(n(cons.value) > 0)) { esito.appendChild(msg('err', 'Compila periodo, importo e consumo.')); return; }
       if (!rPag.checked && !rNo.checked) { esito.appendChild(msg('err', 'Indica se la bolletta è già stata pagata o è da pagare.')); return; }
+      if (rPag.checked && !ric.file()) { esito.appendChild(msg('err', 'Bolletta già pagata: allega la ricevuta del pagamento, oppure scegli "Da pagare" e caricala dopo.')); return; }
+      if (rPag.checked && !ric.data()) { esito.appendChild(msg('err', 'Indica la data del pagamento.')); return; }
       btn.disabled = true; btn.textContent = 'Salvataggio e ricalcolo…';
       chiama({ azione: 'direttivo_bolletta_salva', tipo: tipo, dal: dal.value, al: al.value, emessa: emessa.value, importo: n(imp.value), consumo: n(cons.value),
-        note: note.value, forza: forza, pagata: rPag.checked, pagataIl: rPag.checked ? pagIl.value : '', file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
+        note: note.value, forza: forza, pagata: rPag.checked, pagataIl: rPag.checked ? ric.data() : '', ric_base64: rPag.checked ? ric.dati().ric_base64 : '', ric_mime: ric.dati().ric_mime, ric_nome: ric.dati().ric_nome, file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
         btn.disabled = false; btn.textContent = 'Salva la bolletta';
         if (!j.ok) {
           esito.appendChild(msg('err', j.errore || 'Errore'));
