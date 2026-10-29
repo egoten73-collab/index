@@ -1325,7 +1325,18 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       cu.appendChild(h('p', { style: 'margin:10px 0 0' }, [h('span', { class: 'stato ' + (STATI[u.stato] || ''), text: u.stato })]));
       if (/prezzo|parziale|stima/i.test(String(u.note))) cu.appendChild(h('p', { class: 'mut', text: 'Importi calcolati con i prezzi delle bollette disponibili: potranno cambiare leggermente con il conguaglio.' }));
       if (u.stato === 'da verificare') cu.appendChild(h('p', { class: 'mut', text: 'Una delle tue letture è in verifica da parte del direttivo.' }));
-    } else cu.appendChild(h('p', { class: 'mut', text: 'Per ora non ci sono addebiti di utenze.' }));
+    } else {
+      cu.appendChild(h('p', { class: 'mut', text: 'Per ora non ci sono addebiti di utenze.' }));
+      var LL = j.letture || {};
+      if (LL.acqua || LL.luce) cu.appendChild(h('p', { class: 'mut', text: 'Il costo si calcola sul consumo, cioè sulla differenza tra due letture: con la tua prossima lettura vedrai quanto hai consumato e quanto costa.' }));
+    }
+    if (j.prezzi && (j.prezzi.acqua || j.prezzi.luce)) {
+      var tp = h('table', { class: 'sit', style: 'margin-top:10px' });
+      if (j.prezzi.acqua) tp.appendChild(riga('💧 Prezzo acqua', '€ ' + numIt(j.prezzi.acqua, 2) + ' al m³'));
+      if (j.prezzi.luce) tp.appendChild(riga('⚡ Prezzo luce', '€ ' + numIt(j.prezzi.luce, 3) + ' al kWh'));
+      cu.appendChild(tp);
+      cu.appendChild(h('p', { class: 'mut', style: 'margin:6px 0 0', text: 'Prezzi medi delle bollette degli ultimi 12 mesi, tutto compreso (IVA, oneri, quote fisse). Esempio: 10 m³ di acqua = € ' + numIt(10 * (j.prezzi.acqua || 0), 2) + ', 100 kWh di luce = € ' + numIt(100 * (j.prezzi.luce || 0), 2) + '.' }));
+    }
     app.appendChild(cu);
 
     if (j.quote) {
