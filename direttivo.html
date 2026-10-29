@@ -167,6 +167,10 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
 .scelta{display:inline-flex!important;align-items:center;gap:8px;margin:4px 18px 4px 0!important;text-transform:none!important;letter-spacing:0!important;font-size:15px!important;color:inherit!important}
 .scelta input{width:auto!important;margin:0}
 
+.riga-storico{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:6px;margin-top:6px}
+.riga-storico input{min-width:0;padding:10px 8px!important;font-size:14px}
+.riga-storico.intest small{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+
 </style>
 </head>
 <body>
@@ -579,6 +583,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('span', { class: 'menu-txt' }, [h('strong', { text: 'Da verificare' }), conta]),
         h('span', { class: 'menu-freccia', text: '›' })
       ]),
+      voceMenu('📜', 'Letture degli anni passati', 'Inserisci le letture dai bilanci precedenti: i soci le vedono nel loro storico', function () { vistaStoricoScegli(); }),
       voceMenu('🧮', 'Ricalcola le utenze', 'Aggiorna subito dovuto e saldi (lo fa anche ogni notte)', ricalcola)
     ]));
     app.appendChild(h('div', { class: 'card' }, [
@@ -929,6 +934,77 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       h('p', { text: (b.tipo === 'acqua' ? '💧 Abbanoa ' : '⚡ Enel ') + b.dal + ' – ' + b.al + ' · ' + euro(b.importo) }),
       h('p', { class: 'mut', text: 'Carica la ricevuta del bonifico o del pagamento: viene salvata in Drive insieme alla bolletta.' }),
       box.el, esito, btn, senza]));
+  }
+
+  // ================================================================ letture degli anni passati
+  function vistaStoricoScegli() {
+    svuota(app); app.appendChild(caricamento('Carico gli interni…'));
+    chiama({ azione: 'direttivo_elenco' }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno o nome' }), lista = h('div', { class: 'lista' });
+      function riempi() {
+        svuota(lista); var q = cerca.value.trim().toUpperCase();
+        j.elenco.filter(function (r) { return !q || r.interno === q || String(r.socio).toUpperCase().indexOf(q) >= 0; }).forEach(function (r) {
+          lista.appendChild(h('button', { type: 'button', class: 'menu', onclick: function () { vistaStorico(r.interno, r.socio); } }, [
+            h('span', { class: 'ri-num', text: r.interno === 'GEN' ? 'GEN' : r.interno }), h('span', { class: 'menu-txt' }, [h('strong', { text: r.socio })]), h('span', { class: 'menu-freccia', text: '›' })]));
+        });
+      }
+      cerca.addEventListener('input', riempi); riempi();
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Letture degli anni passati' }),
+        h('p', { class: 'mut', text: 'Servono solo per lo storico dei consumi che il socio vede nella sua pagina: non vengono addebitate e non cambiano il calcolo delle utenze.' }),
+        cerca, lista]));
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
+  }
+
+  function vistaStorico(interno, socio) {
+    svuota(app); app.appendChild(caricamento('Carico le letture…'));
+    chiama({ azione: 'direttivo_storico', interno: interno }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaStoricoScegli));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      // modulo: piu' righe insieme
+      var righe = h('div'), esito = h('div');
+      function nuovaRiga() {
+        var d = h('input', { type: 'date' }), a = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'acqua m³' }), l = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'luce kWh' });
+        var r = h('div', { class: 'riga-storico' }, [d, a, l]); r._campi = { d: d, a: a, l: l };
+        righe.appendChild(r);
+      }
+      nuovaRiga(); nuovaRiga(); nuovaRiga();
+      var note = h('input', { type: 'text', placeholder: 'Es. bilancio 2022' });
+      var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:12px', text: 'Salva le letture', onclick: function () {
+        svuota(esito);
+        var dati = [].slice.call(righe.children).map(function (r) { return { data: r._campi.d.value, acqua: r._campi.a.value.trim(), luce: r._campi.l.value.trim(), note: note.value }; })
+          .filter(function (x) { return x.data || x.acqua || x.luce; });
+        if (!dati.length) { esito.appendChild(msg('err', 'Compila almeno una riga.')); return; }
+        if (dati.some(function (x) { return !x.data || (!x.acqua && !x.luce); })) { esito.appendChild(msg('err', 'Ogni riga deve avere la data e almeno un valore (acqua o luce).')); return; }
+        btn.disabled = true; btn.textContent = 'Salvataggio…';
+        chiama({ azione: 'direttivo_storico_salva', interno: interno, righe: dati }).then(function (x) {
+          if (x.ok) vistaStorico(interno, socio); else { btn.disabled = false; btn.textContent = 'Salva le letture'; esito.appendChild(msg('err', x.errore)); }
+        }).catch(function (e) { btn.disabled = false; btn.textContent = 'Salva le letture'; esito.appendChild(msg('err', e.message)); });
+      } });
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Int. ' + interno + ' – ' + socio }),
+        h('p', { class: 'mut', text: 'Una riga per ogni lettura: data, acqua (m³) e/o luce (kWh). Solo storico: non viene addebitata.' }),
+        h('div', { class: 'riga-storico intest' }, [h('small', { text: 'Data' }), h('small', { text: 'Acqua m³' }), h('small', { text: 'Luce kWh' })]),
+        righe,
+        h('button', { type: 'button', class: 'piccolo', style: 'margin-top:6px', text: '+ Aggiungi riga', onclick: nuovaRiga }),
+        h('label', { text: 'Fonte / note' }), note, esito, btn]));
+      // elenco esistente
+      var card = h('div', { class: 'card' }, [h('h2', { text: 'Letture registrate' })]);
+      if (!j.letture.length) card.appendChild(h('p', { class: 'mut', text: 'Nessuna lettura.' }));
+      j.letture.forEach(function (x) {
+        card.appendChild(h('div', { class: 'voce-lista' }, [
+          h('div', { class: 'vl-testa' }, [h('strong', { text: x.data }), x.storica ? h('span', { class: 'stato', text: 'anni passati' }) : x.inVerifica ? h('span', { class: 'stato warn', text: 'in verifica' }) : null]),
+          h('p', { class: 'mut', style: 'margin:2px 0', text: [x.acqua !== null && x.acqua !== '' ? '💧 ' + numIt(x.acqua) + ' m³' + (typeof x.consAcqua === 'number' ? ' (+' + numIt(x.consAcqua) + ')' : '') : '',
+            x.luce !== null && x.luce !== '' ? '⚡ ' + numIt(x.luce) + ' kWh' + (typeof x.consLuce === 'number' ? ' (+' + numIt(x.consLuce) + ')' : '') : '', x.nota].filter(Boolean).join(' · ') }),
+          x.storica ? h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
+            if (!confirm('Eliminare la lettura del ' + x.data + '?')) return;
+            chiama({ azione: 'direttivo_storico_elimina', riga: x.riga }).then(function (y) { if (y.ok) vistaStorico(interno, socio); else alert(y.errore); }).catch(function (e) { alert(e.message); });
+          } }) : null
+        ]));
+      });
+      app.appendChild(card);
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaStoricoScegli)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
 
   function euro4(n) { return '€ ' + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }

@@ -1267,6 +1267,45 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 
   function riga(nome, valore, classe) { return h('tr', { class: classe || '' }, [h('td', { text: nome }), h('td', { text: valore })]); }
 
+  function vistaStorico(interno) {
+    var codici = leggi('distinte_codici') || {};
+    svuota(app);
+    app.appendChild(indietro(function () { vistaSituazione(interno); }));
+    app.appendChild(caricamento('Carico lo storico…'));
+    chiama({ azione: 'storico', interno: interno, codice: codici[interno] }).then(function (j) {
+      svuota(app); app.appendChild(indietro(function () { vistaSituazione(interno); }));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('warn', j.errore || 'Storico non disponibile.')])); return; }
+      app.appendChild(h('p', { class: 'mut', style: 'margin:0 0 10px', text: j.socio + ' — Interno ' + j.interno }));
+      if (!j.letture.length) { app.appendChild(h('div', { class: 'card' }, [h('p', { class: 'mut', text: 'Non ci sono ancora letture per il tuo interno.' })])); return; }
+      if (j.anni.length) {
+        var ta = h('table', { class: 'sit' }, [h('tr', {}, [h('td', {}, [h('b', { text: 'Anno' })]), h('td', {}, [h('b', { text: '💧 m³' })]), h('td', {}, [h('b', { text: '⚡ kWh' })])])]);
+        j.anni.forEach(function (a) { ta.appendChild(h('tr', {}, [h('td', { text: String(a.anno) }), h('td', { text: a.acqua ? numIt(a.acqua) : '–' }), h('td', { text: a.luce ? numIt(a.luce) : '–' })])); });
+        app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Consumi per anno' }), ta,
+          h('p', { class: 'mut', text: 'Consumo tra una lettura e la successiva, conteggiato nell\'anno della lettura più recente. Gli anni con poche letture possono risultare parziali.' })]));
+      }
+      var tl = h('table', { class: 'sit' }, [h('tr', {}, [h('td', {}, [h('b', { text: 'Data' })]), h('td', {}, [h('b', { text: '💧 Acqua' })]), h('td', {}, [h('b', { text: '⚡ Luce' })])])]);
+      function cella(val, cons, unita) {
+        if (val === null || val === undefined || val === '') return '–';
+        var t = numIt(val);
+        if (typeof cons === 'number') t += '\n(+' + numIt(cons) + ' ' + unita + ')';
+        else if (cons) t += '\n(' + cons + ')';
+        return t;
+      }
+      j.letture.forEach(function (x) {
+        tl.appendChild(h('tr', {}, [
+          h('td', { text: x.data + (x.storica ? ' 📜' : '') + (x.inVerifica ? ' ⏳' : '') }),
+          h('td', { style: 'white-space:pre-line', text: cella(x.acqua, x.consAcqua, 'm³') }),
+          h('td', { style: 'white-space:pre-line', text: cella(x.luce, x.consLuce, 'kWh') })
+        ]));
+      });
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Tutte le letture' }), tl,
+        h('p', { class: 'mut', text: 'Tra parentesi il consumo dalla lettura precedente. 📜 = lettura degli anni passati inserita dal direttivo (solo informativa). ⏳ = in verifica.' })]));
+    }).catch(function () {
+      svuota(app); app.appendChild(indietro(function () { vistaSituazione(interno); }));
+      app.appendChild(h('div', { class: 'card' }, [msg('err', 'Connessione non riuscita: riprova.')]));
+    });
+  }
+
   function mostraSituazione(j) {
     svuota(app);
     app.appendChild(indietro());
@@ -1337,6 +1376,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       riga('⚡ Luce', L.luce ? numIt(L.luce.valore) + ' kWh – ' + L.luce.data : 'nessuna')
     ]));
     cl.appendChild(h('button', { class: 'big', type: 'button', style: 'margin-top:12px', text: '🔢 Inserisci una nuova lettura', onclick: vistaLettura }));
+    cl.appendChild(h('button', { class: 'big', type: 'button', style: 'margin-top:8px', text: '📈 Storico letture e consumi', onclick: function () { vistaStorico(j.interno); } }));
     app.appendChild(cl);
     if (j.aggiornato) app.appendChild(h('p', { class: 'mut', style: 'text-align:center', text: 'Importi aggiornati al ' + j.aggiornato }));
   }
