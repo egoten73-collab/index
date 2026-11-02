@@ -421,7 +421,28 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     });
   }
 
-  root.Contatori = { caricaFoto: caricaFoto, Ritaglio: Ritaglio, leggi: leggi, setteSegmenti: setteSegmenti, ritaglia: ritaglia, prepara: getWorker };
+
+  /** "149" -> "14,9": per i contatori dell'acqua con l'ultima cifra (decimi) su sfondo bianco o rosso. */
+  function conVirgola(s) {
+    s = String(s || '').replace(/\D/g, '');
+    if (s.length < 2) return '';
+    return s.slice(0, -1).replace(/^0+(?=\d)/, '') + ',' + s.slice(-1);
+  }
+
+  /** Disegno: rulli neri = m3 interi, ultimo rullo bianco/rosso = decimi. */
+  function disegnoAcqua() {
+    var cifre = ['0', '0', '1', '4'], x = 6, s = '';
+    cifre.forEach(function (c) { s += '<rect x="' + x + '" y="6" width="26" height="36" rx="3" fill="#111"/><text x="' + (x + 13) + '" y="33" font-size="24" font-family="monospace" fill="#fff" text-anchor="middle">' + c + '</text>'; x += 30; });
+    s += '<rect x="' + x + '" y="6" width="26" height="36" rx="3" fill="#f4f4f4" stroke="#c0392b" stroke-width="2"/><text x="' + (x + 13) + '" y="33" font-size="24" font-family="monospace" fill="#111" text-anchor="middle">9</text>';
+    s += '<text x="' + (x + 40) + '" y="33" font-size="20" font-family="sans-serif" fill="currentColor">= 14,9 m³</text>';
+    var d = document.createElement('div');
+    d.className = 'disegno-acqua';
+    d.innerHTML = '<svg viewBox="0 0 300 48" width="100%" style="max-width:320px;display:block" role="img" aria-label="Esempio: cifre nere 0014, ultima cifra bianca 9, si legge 14,9 metri cubi">' + s + '</svg>' +
+      '<p class="mut" style="margin:4px 0 0">Cifre su sfondo <b>nero</b> = metri cubi. Se l\'ultima cifra ha lo sfondo <b>bianco o rosso</b> va <b>dopo la virgola</b>. I quadranti rossi in basso non servono.</p>';
+    return d;
+  }
+
+  root.Contatori = { caricaFoto: caricaFoto, Ritaglio: Ritaglio, leggi: leggi, setteSegmenti: setteSegmenti, ritaglia: ritaglia, prepara: getWorker, conVirgola: conVirgola, disegnoAcqua: disegnoAcqua };
 })(window);
 
 </script>
@@ -631,16 +652,16 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     app.appendChild(indietro(vistaMenu));
     var L = elenco.elenco;
     var nA = L.filter(function (x) { return fatto(x, 'acqua'); }).length, nL = L.filter(function (x) { return fatto(x, 'luce'); }).length;
-    var cerca = h('input', { type: 'search', placeholder: 'Cerca interno o nome', value: filtro });
+    var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome', value: filtro });
     var lista = h('div', { class: 'lista' });
     function riempi() {
       svuota(lista);
       var q = filtro.trim().toUpperCase();
-      L.filter(function (x) { return !q || x.interno === q || String(x.socio).toUpperCase().indexOf(q) >= 0; }).forEach(function (x) {
+      L.filter(function (x) { return trovaRiga(x, q); }).forEach(function (x) {
         var cls = 'riga-int' + (completo(x) ? ' fatto' : (fatto(x, 'acqua') || fatto(x, 'luce')) ? ' meta' : '') + (x.interno === evidenzia ? ' prossimo' : '');
         var el = h('button', { type: 'button', class: cls, onclick: function () { vistaInterno(x); } }, [
           h('span', { class: 'ri-num', text: x.interno }),
-          h('span', { class: 'ri-txt' }, [h('strong', { text: x.socio }),
+          h('span', { class: 'ri-txt' }, [h('strong', { text: x.socio }), x.lotto ? h('small', { text: 'Lotto ' + x.lotto }) : null,
             h('small', { text: testoUltima(x, 'acqua') }), h('small', { text: testoUltima(x, 'luce') })]),
           h('span', { class: 'ri-stato', text: completo(x) ? '✓' : '›' })
         ]);
@@ -727,6 +748,9 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       box.appendChild(h('label', { text: perCostante ? 'Numero sul display (verrà moltiplicato × ' + COSTANTE + ')' : 'Lettura (' + UNITA[tipo] + ')' }));
       box.appendChild(h('div', { class: 'val-wrap' }, [inp, h('span', { class: 'val-unita', text: perCostante ? '× ' + COSTANTE : UNITA[tipo] })]));
       if (perCostante) box.appendChild(calc);
+      var sceltaV = h('div');
+      box.appendChild(sceltaV);
+      if (tipo === 'acqua') box.appendChild(window.Contatori.disegnoAcqua());
       box.appendChild(alt);
       var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:10px', text: 'Salva ' + (tipo === 'acqua' ? 'acqua' : 'luce'), onclick: function () { salva(false); } });
       box.appendChild(esito); box.appendChild(btn);
@@ -744,23 +768,40 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         scriviStato('Leggo i numeri…', true);
         window.Contatori.leggi(foto.canvas, rit.riquadro(), tipo, function (t) { scriviStato(t, true); }).then(function (r) {
           svuota(alt);
-          if (r.migliore) { inp.value = r.migliore; letto = r.migliore; aggiornaCalc(); scriviStato('Numeri letti: controllali.'); }
+          if (r.migliore) {
+            inp.value = r.migliore; letto = r.migliore; aggiornaCalc(); scriviStato('Numeri letti: controllali.');
+            if (tipo === 'acqua') sceltaVirgola(r.migliore);
+          }
           else scriviStato('Numeri non leggibili: riquadra meglio o scrivi a mano.');
           r.alternative.forEach(function (a) { alt.appendChild(h('button', { type: 'button', class: 'chip', text: 'Oppure ' + a + '?', onclick: function () { inp.value = a; aggiornaCalc(); } })); });
         }).catch(function () { scriviStato('Lettura automatica non disponibile: scrivi il numero.'); });
       }
-      function salva(forza) {
+      function sceltaVirgola(n) {
+        svuota(sceltaV);
+        var dec = window.Contatori.conVirgola(n);
+        if (!dec || /[.,]/.test(n)) return;
+        sceltaV.appendChild(msg('warn', 'Ultima cifra su sfondo bianco o rosso? Allora va dopo la virgola.'));
+        sceltaV.appendChild(h('div', { class: 'row' }, [
+          h('button', { type: 'button', class: 'pri', style: 'flex:1', text: dec + ' m³', onclick: function () { inp.value = dec; letto = dec; svuota(sceltaV); } }),
+          h('button', { type: 'button', style: 'flex:1', text: n + ' m³', onclick: function () { inp.value = n; letto = n; svuota(sceltaV); } })]));
+        inp.value = dec;
+      }
+      function salva(forza, conferma) {
         svuota(esito);
         var v = String(inp.value).trim().replace(/\s/g, '').replace(',', '.');
         if (!/^\d+(\.\d{1,3})?$/.test(v)) { esito.appendChild(msg('err', 'Scrivi la lettura con le sole cifre.')); return; }
         var valore = perCostante ? String(Math.round(Number(v) * COSTANTE * 100) / 100) : v;
         btn.disabled = true; btn.textContent = 'Salvataggio…';
-        chiama({ azione: 'lettura', interno: x.interno, tipo: tipo, valore: valore, forza: forza, ocr: !!letto && inp.value === letto,
+        chiama({ azione: 'lettura', interno: x.interno, tipo: tipo, valore: valore, forza: forza, confermaValore: conferma === true, ocr: !!letto && inp.value === letto,
           foto_base64: foto ? foto.base64 : '', foto_mime: foto ? foto.mime : '', foto_nome: 'contatore.jpg' }).then(function (j) {
           btn.disabled = false; btn.textContent = 'Salva ' + (tipo === 'acqua' ? 'acqua' : 'luce');
           if (!j.ok) {
             esito.appendChild(msg('err', j.errore || 'Errore'));
             if (j.bassa) esito.appendChild(h('button', { type: 'button', class: 'big', text: 'Il contatore è stato sostituito: salva comunque', onclick: function () { salva(true); } }));
+            if (j.virgola) {
+              if (j.proposta) esito.appendChild(h('button', { type: 'button', class: 'pri big', text: 'Correggi in ' + numIt(j.proposta) + ' m³ e salva', onclick: function () { inp.value = String(j.proposta).replace('.', ','); salva(forza); } }));
+              esito.appendChild(h('button', { type: 'button', class: 'big', text: 'Il numero è giusto: salva', onclick: function () { salva(forza, true); } }));
+            }
             return;
           }
           x[tipo] = { valore: j.valore, data: new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }), oggi: true };
@@ -942,12 +983,12 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     chiama({ azione: 'direttivo_elenco' }).then(function (j) {
       svuota(app); app.appendChild(indietro(vistaMenu));
       if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
-      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno o nome' }), lista = h('div', { class: 'lista' });
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome' }), lista = h('div', { class: 'lista' });
       function riempi() {
         svuota(lista); var q = cerca.value.trim().toUpperCase();
-        j.elenco.filter(function (r) { return !q || r.interno === q || String(r.socio).toUpperCase().indexOf(q) >= 0; }).forEach(function (r) {
+        j.elenco.filter(function (r) { return trovaRiga(r, q); }).forEach(function (r) {
           lista.appendChild(h('button', { type: 'button', class: 'menu', onclick: function () { vistaStorico(r.interno, r.socio); } }, [
-            h('span', { class: 'ri-num', text: r.interno === 'GEN' ? 'GEN' : r.interno }), h('span', { class: 'menu-txt' }, [h('strong', { text: r.socio })]), h('span', { class: 'menu-freccia', text: '›' })]));
+            h('span', { class: 'ri-num', text: r.interno === 'GEN' ? 'GEN' : r.interno }), h('span', { class: 'menu-txt' }, [h('strong', { text: r.socio }), r.lotto ? h('small', { text: 'Lotto ' + r.lotto }) : null]), h('span', { class: 'menu-freccia', text: '›' })]));
         });
       }
       cerca.addEventListener('input', riempi); riempi();
@@ -983,7 +1024,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         }).catch(function (e) { btn.disabled = false; btn.textContent = 'Salva le letture'; esito.appendChild(msg('err', e.message)); });
       } });
       app.appendChild(h('div', { class: 'card' }, [
-        h('h2', { text: 'Int. ' + interno + ' – ' + socio }),
+        h('h2', { text: 'Int. ' + interno + (j.lotto ? ' · lotto ' + j.lotto : '') + ' – ' + socio }),
         h('p', { class: 'mut', text: 'Una riga per ogni lettura: data, acqua (m³) e/o luce (kWh). Solo storico: non viene addebitata.' }),
         h('div', { class: 'riga-storico intest' }, [h('small', { text: 'Data' }), h('small', { text: 'Acqua m³' }), h('small', { text: 'Luce kWh' })]),
         righe,
@@ -1005,6 +1046,14 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       });
       app.appendChild(card);
     }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaStoricoScegli)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
+  }
+
+  /** Filtro delle liste: numero di interno, numero di lotto ("83" o "lotto 83") o parte del nome. */
+  function trovaRiga(r, q) {
+    if (!q) return true;
+    var ml = /^L(?:OTTO)?\.?\s*(\S+)$/.exec(q);
+    if (ml) return String(r.lotto || '').toUpperCase() === ml[1];
+    return r.interno === q || String(r.lotto || '').toUpperCase() === q || String(r.socio).toUpperCase().indexOf(q) >= 0;
   }
 
   function euro4(n) { return '€ ' + Number(n || 0).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); }
@@ -1199,18 +1248,18 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         ]),
         j.aggiornato ? h('p', { class: 'mut', style: 'margin:8px 0 0', text: 'Utenze calcolate il ' + j.aggiornato + '.' }) : null
       ]));
-      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno o nome', value: filtro });
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome', value: filtro });
       var soloDebito = h('input', { type: 'checkbox', checked: true });
       var lista = h('div', { class: 'lista' });
       function riempi() {
         svuota(lista);
         var q = filtro.trim().toUpperCase();
-        j.righe.filter(function (r) { return (!q || r.interno === q || String(r.socio).toUpperCase().indexOf(q) >= 0) && (!soloDebito.checked || r.totale > 0.5); })
+        j.righe.filter(function (r) { return trovaRiga(r, q) && (!soloDebito.checked || r.totale > 0.5); })
           .sort(function (a, b) { return ordineSit === 'totale' ? b.totale - a.totale : Number(a.interno) - Number(b.interno); })
           .forEach(function (r) {
             function cifra(etic, v) { return h('span', { class: 'cifra' + (v > 0.5 ? ' deve' : v < -0.5 ? ' credito' : '') }, [etic + ' ', h('b', { text: v > 0.5 ? euro(v) : v < -0.5 ? '+' + euro(-v) : '✓' })]); }
             lista.appendChild(h('div', { class: 'riga-sit' }, [
-              h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
+              h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio + (r.lotto ? ' · lotto ' + r.lotto : '') }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
               h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)].concat(r.arretrati ? [cifra('Arretr.', r.arretrati)] : [])
                 .concat(r.exSocio ? [h('span', { class: 'cifra', text: 'Vecchio socio ' + r.exSocio.socio + ': ' + euro(r.exSocio.saldo) })] : []))
             ]));

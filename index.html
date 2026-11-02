@@ -376,7 +376,28 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     });
   }
 
-  root.Contatori = { caricaFoto: caricaFoto, Ritaglio: Ritaglio, leggi: leggi, setteSegmenti: setteSegmenti, ritaglia: ritaglia, prepara: getWorker };
+
+  /** "149" -> "14,9": per i contatori dell'acqua con l'ultima cifra (decimi) su sfondo bianco o rosso. */
+  function conVirgola(s) {
+    s = String(s || '').replace(/\D/g, '');
+    if (s.length < 2) return '';
+    return s.slice(0, -1).replace(/^0+(?=\d)/, '') + ',' + s.slice(-1);
+  }
+
+  /** Disegno: rulli neri = m3 interi, ultimo rullo bianco/rosso = decimi. */
+  function disegnoAcqua() {
+    var cifre = ['0', '0', '1', '4'], x = 6, s = '';
+    cifre.forEach(function (c) { s += '<rect x="' + x + '" y="6" width="26" height="36" rx="3" fill="#111"/><text x="' + (x + 13) + '" y="33" font-size="24" font-family="monospace" fill="#fff" text-anchor="middle">' + c + '</text>'; x += 30; });
+    s += '<rect x="' + x + '" y="6" width="26" height="36" rx="3" fill="#f4f4f4" stroke="#c0392b" stroke-width="2"/><text x="' + (x + 13) + '" y="33" font-size="24" font-family="monospace" fill="#111" text-anchor="middle">9</text>';
+    s += '<text x="' + (x + 40) + '" y="33" font-size="20" font-family="sans-serif" fill="currentColor">= 14,9 m³</text>';
+    var d = document.createElement('div');
+    d.className = 'disegno-acqua';
+    d.innerHTML = '<svg viewBox="0 0 300 48" width="100%" style="max-width:320px;display:block" role="img" aria-label="Esempio: cifre nere 0014, ultima cifra bianca 9, si legge 14,9 metri cubi">' + s + '</svg>' +
+      '<p class="mut" style="margin:4px 0 0">Cifre su sfondo <b>nero</b> = metri cubi. Se l\'ultima cifra ha lo sfondo <b>bianco o rosso</b> va <b>dopo la virgola</b>. I quadranti rossi in basso non servono.</p>';
+    return d;
+  }
+
+  root.Contatori = { caricaFoto: caricaFoto, Ritaglio: Ritaglio, leggi: leggi, setteSegmenti: setteSegmenti, ritaglia: ritaglia, prepara: getWorker, conVirgola: conVirgola, disegnoAcqua: disegnoAcqua };
 })(window);
 
 </script>
@@ -895,7 +916,9 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     var v = P.parseImporto(String(s));
     return isFinite(v) ? Math.round(v * 100) / 100 : NaN;
   }
-  function testoInterni(lista) { return 'Int. ' + lista.join(' e '); }
+  function testoInterni(lista, lotti) {
+    return lista.map(function (k, i) { return 'Int. ' + k + (lotti && lotti[i] ? ' lotto ' + lotti[i] : ''); }).join(' e ');
+  }
   function caricaScript(url) {
     return new Promise(function (ok, ko) {
       var s = document.createElement('script');
@@ -1016,8 +1039,8 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
           if (!j.ok) { esito.appendChild(msg('err', j.errore || 'Errore')); return; }
           if (!j.risultati.length) { esito.appendChild(msg('warn', 'Nessun socio trovato. Controlla come hai scritto il nome oppure prova con il numero di interno.')); return; }
           j.risultati.forEach(function (r) {
-            risultati.appendChild(h('button', { type: 'button', class: 'chip', style: 'text-align:left;padding:12px', text: r.nome + ' — ' + testoInterni(r.interni) + (r.ex ? ' (ex intestatario)' : ''), onclick: function () {
-              socio = { nome: r.nome, interni: r.interni.slice() };
+            risultati.appendChild(h('button', { type: 'button', class: 'chip', style: 'text-align:left;padding:12px', text: r.nome + ' — ' + testoInterni(r.interni, r.lotti) + (r.ex ? ' (ex intestatario)' : ''), onclick: function () {
+              socio = { nome: r.nome, interni: r.interni.slice(), lotti: (r.lotti || []).slice() };
               scrivi('distinte_socio', socio);
               vistaInizio();
             } }));
@@ -1027,7 +1050,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     } });
     app.appendChild(h('div', { class: 'card' }, [
       h('h2', { text: 'Benvenuto! Chi sei?' }),
-      h('p', { class: 'mut', text: 'Scrivi il tuo cognome oppure il numero del tuo interno e tocca il tuo nome. Serve solo la prima volta: poi questo telefono ti riconosce.' }),
+      h('p', { class: 'mut', text: 'Scrivi il tuo cognome, il numero del tuo interno o del tuo lotto e tocca il tuo nome. Serve solo la prima volta: poi questo telefono ti riconosce.' }),
       inp, esito, risultati
     ]));
   }
@@ -1038,6 +1061,13 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     if (!cfg.url || !cfg.token) return DIRETTIVO ? vistaImpostazioni() : vistaNonCollegata();
     if (!socio) return vistaIdentifica();
     caricaTariffe();
+    if (!socio.lotti) {   // soci gia' riconosciuti prima dei lotti: li recupera una volta
+      var s0 = socio;
+      chiama({ azione: 'cerca', q: s0.interni[0] }).then(function (j) {
+        var r = j.ok && j.risultati.filter(function (x) { return x.nome === s0.nome && !x.ex; })[0];
+        if (r && socio === s0) { socio.lotti = r.lotti || []; scrivi('distinte_socio', socio); if (socio.lotti.some(Boolean)) vistaInizio(); }
+      }).catch(function () { /* ok */ });
+    }
     app.appendChild(cardSocio());
     app.appendChild(h('div', { class: 'card' }, [
       h('h2', { text: 'Cosa vuoi fare?' }),
@@ -1049,7 +1079,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 
   function cardSocio() {
     return h('div', { class: 'card' }, [
-      h('p', { style: 'margin-top:0' }, [h('strong', { text: socio.nome }), ' — ' + testoInterni(socio.interni)]),
+      h('p', { style: 'margin-top:0' }, [h('strong', { text: socio.nome }), ' — ' + testoInterni(socio.interni, socio.lotti)]),
       h('button', { type: 'button', text: 'Non sono io', onclick: function () { socio = null; scrivi('distinte_socio', null); vistaIdentifica(); } })
     ]);
   }
@@ -1084,7 +1114,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   var UNITA = { acqua: 'm³', luce: 'kWh' };
   var NOME_TIPO = { acqua: '💧 Lettura acqua', luce: '⚡ Lettura luce' };
   var ISTRUZIONI = {
-    acqua: 'Fotografa il contatore da vicino e dritto. Poi riquadra solo i numeri NERI (i metri cubi): escludi quelli rossi.',
+    acqua: 'Fotografa il contatore da vicino e dritto. Poi riquadra solo i numeri dei rulli (non i quadranti rossi in basso).',
     luce: 'Fotografa il display quando mostra i kWh totali (scritta "kWh" o "1.8.0"). Poi riquadra solo le cifre.'
   };
 
@@ -1121,6 +1151,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     app.appendChild(h('div', { class: 'card' }, [
       h('h2', { text: NOME_TIPO[tipo] + ' – Int. ' + interno }),
       h('p', { class: 'mut', text: ISTRUZIONI[tipo] }),
+      tipo === 'acqua' ? window.Contatori.disegnoAcqua() : null,
       h('button', { class: 'pri big', type: 'button', text: '📷 Fotografa il contatore', onclick: function () { fCam.click(); } }),
       h('button', { class: 'big', type: 'button', text: '🖼 Scegli una foto dalla galleria', onclick: function () { fGal.click(); } }),
       h('button', { class: 'big', type: 'button', text: '⌨ Scrivi la lettura a mano', onclick: function () { vistaValoreLettura(tipo, interno, null); } }),
@@ -1156,9 +1187,12 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     }
     card.appendChild(h('label', { text: 'Lettura del contatore (' + unita + ')' }));
     card.appendChild(h('div', { class: 'val-wrap' }, [inp, h('span', { class: 'val-unita', text: unita })]));
+    var sceltaV = h('div');
+    card.appendChild(sceltaV);
+    if (tipo === 'acqua') card.appendChild(window.Contatori.disegnoAcqua());
     card.appendChild(alt);
     card.appendChild(h('p', { class: 'mut', text: 'Controlla che il numero sia uguale a quello del contatore; se non lo è, correggilo.' }));
-    var btn = h('button', { class: 'pri big', type: 'button', text: 'Invia la lettura', onclick: invia });
+    var btn = h('button', { class: 'pri big', type: 'button', text: 'Invia la lettura', onclick: function () { invia(false); } });
     card.appendChild(esito); card.appendChild(btn);
     app.appendChild(card);
     if (!foto) setTimeout(function () { inp.focus(); }, 50);
@@ -1169,7 +1203,10 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       scriviStato('Leggo i numeri…', true);
       window.Contatori.leggi(foto.canvas, rit.riquadro(), tipo, function (t) { scriviStato(t, true); }).then(function (r) {
         svuota(alt);
-        if (r.migliore) { inp.value = r.migliore; letto = r.migliore; scriviStato('Numeri letti dalla foto: controllali bene.'); }
+        if (r.migliore) {
+          inp.value = r.migliore; letto = r.migliore; scriviStato('Numeri letti dalla foto: controllali bene.');
+          if (tipo === 'acqua') sceltaVirgola(r.migliore);
+        }
         else scriviStato('Non riesco a leggere i numeri: riquadrali meglio oppure scrivili a mano.');
         r.alternative.forEach(function (a) {
           alt.appendChild(h('button', { type: 'button', class: 'chip', text: 'Oppure ' + a + '?', onclick: function () { inp.value = a; letto = a; } }));
@@ -1178,16 +1215,34 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     }
     if (foto) setTimeout(leggiOra, 80);
 
-    function invia() {
+    function sceltaVirgola(n) {
+      svuota(sceltaV);
+      var dec = window.Contatori.conVirgola(n);
+      if (!dec || /[.,]/.test(n)) return;
+      function pulsante(val, testo) {
+        return h('button', { type: 'button', class: 'big', style: 'text-align:left', onclick: function () { inp.value = val; letto = val; svuota(sceltaV); sceltaV.appendChild(msg('ok', 'Lettura: ' + val + ' m³')); } },
+          [h('strong', { text: val + ' m³' }), h('small', { style: 'display:block;opacity:.8', text: testo })]);
+      }
+      sceltaV.appendChild(msg('warn', 'Controlla l\'ultima cifra del contatore: ha lo sfondo bianco o rosso?'));
+      sceltaV.appendChild(pulsante(dec, 'Sì: l\'ultima cifra ha lo sfondo diverso (va dopo la virgola)'));
+      sceltaV.appendChild(pulsante(n, 'No: tutte le cifre hanno lo stesso sfondo nero'));
+      inp.value = dec;
+    }
+
+    function invia(conferma) {
       svuota(esito);
       var v = String(inp.value).trim().replace(/\s/g, '').replace(',', '.');
       if (!/^\d+(\.\d{1,3})?$/.test(v)) { esito.appendChild(msg('err', 'Scrivi la lettura usando solo le cifre.')); return; }
       btn.disabled = true; btn.textContent = 'Invio in corso…';
-      chiama({ azione: 'lettura', interno: interno, tipo: tipo, valore: v, ocr: !!letto && inp.value === letto,
+      chiama({ azione: 'lettura', interno: interno, tipo: tipo, valore: v, ocr: !!letto && inp.value === letto, confermaValore: conferma === true,
         foto_base64: foto ? foto.base64 : '', foto_mime: foto ? foto.mime : '', foto_nome: 'contatore.jpg' }).then(function (j) {
         btn.disabled = false; btn.textContent = 'Invia la lettura';
         if (j.ok) return vistaLetturaOk(j, interno);
         esito.appendChild(msg('err', j.errore || 'Errore sconosciuto.'));
+        if (j.virgola) {
+          if (j.proposta) esito.appendChild(h('button', { type: 'button', class: 'pri big', text: 'Correggi in ' + numIt(j.proposta) + ' m³ e invia', onclick: function () { inp.value = String(j.proposta).replace('.', ','); invia(); } }));
+          esito.appendChild(h('button', { type: 'button', class: 'big', text: 'Il numero è giusto: invia ' + inp.value + ' m³', onclick: function () { invia(true); } }));
+        }
       }).catch(function () {
         btn.disabled = false; btn.textContent = 'Invia la lettura';
         esito.appendChild(msg('err', 'Invio non riuscito: controlla la connessione e riprova.'));
@@ -1275,7 +1330,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     chiama({ azione: 'storico', interno: interno, codice: codici[interno] }).then(function (j) {
       svuota(app); app.appendChild(indietro(function () { vistaSituazione(interno); }));
       if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('warn', j.errore || 'Storico non disponibile.')])); return; }
-      app.appendChild(h('p', { class: 'mut', style: 'margin:0 0 10px', text: j.socio + ' — Interno ' + j.interno }));
+      app.appendChild(h('p', { class: 'mut', style: 'margin:0 0 10px', text: j.socio + ' — Interno ' + j.interno + (j.lotto ? ' · Lotto ' + j.lotto : '') }));
       if (!j.letture.length) { app.appendChild(h('div', { class: 'card' }, [h('p', { class: 'mut', text: 'Non ci sono ancora letture per il tuo interno.' })])); return; }
       if (j.anni.length) {
         var ta = h('table', { class: 'sit' }, [h('tr', {}, [h('td', {}, [h('b', { text: 'Anno' })]), h('td', {}, [h('b', { text: '💧 m³' })]), h('td', {}, [h('b', { text: '⚡ kWh' })])])]);
@@ -1309,7 +1364,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   function mostraSituazione(j) {
     svuota(app);
     app.appendChild(indietro());
-    app.appendChild(h('p', { class: 'mut', style: 'margin:0 0 10px', text: j.socio + ' — Interno ' + j.interno }));
+    app.appendChild(h('p', { class: 'mut', style: 'margin:0 0 10px', text: j.socio + ' — Interno ' + j.interno + (j.lotto ? ' · Lotto ' + j.lotto : '') }));
     var u = j.utenze, cu = h('div', { class: 'card' }, [h('h2', { text: 'Utenze' + (u ? ' ' + u.anno : '') })]);
     if (u) {
       var saldo = Number(u.saldo) || 0;
