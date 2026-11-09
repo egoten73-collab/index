@@ -665,8 +665,12 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   }
 
   // ------------------------------------------------------------------ categorie
+  var RE_UTENZE = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/;
+
   function indovinaCategoria(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase();
+    // "utenze arretrate", "morosita' luce": le utenze vecchie stanno nel conto Utenze (con il riporto), non negli arretrati
+    if (/arretrat|pregress|morosit/.test(t) && RE_UTENZE.test(t)) return 'Utenze';
     if (/arretrat|pregress|morosit/.test(t)) return 'Arretrati';
     // voci dei solleciti dell'amministratore (anni passati): stanno negli arretrati
     if (/depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t)) return 'Arretrati';
@@ -698,7 +702,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     if (/quota|ordinari|mensilit|canone/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
     if (!vecchie && /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
-    if (vecchie || /arretrat|pregress|morosit/.test(t)) out.push('Arretrati');
+    if (vecchie || (/arretrat|pregress|morosit/.test(t) && out.indexOf('Utenze') < 0)) out.push('Arretrati');
     return out;
   }
 
