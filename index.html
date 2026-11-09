@@ -1828,7 +1828,12 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       bottone.disabled = false; bottone.textContent = 'Invia la distinta';
       if (j.ok) return vistaSuccesso();
       if (j.doppione) {
-        if (window.confirm('Sembra che questa distinta sia già stata inviata (stessa data, interno e importo). Inviarla comunque?')) return salva(true, bottone, esito);
+        esito.appendChild(msg('warn', '⚠️ ' + (j.errore || 'Sembra che questa distinta sia già stata inviata.') + ' Se è la stessa ricevuta non inviarla di nuovo.'));
+        esito.appendChild(h('button', { type: 'button', class: 'big', text: 'Non inviare: torna all\'inizio', onclick: vistaInizio }));
+        esito.appendChild(h('button', { type: 'button', class: 'big', text: 'È un pagamento diverso: invia comunque', onclick: function () {
+          if (window.confirm('Confermi che è un altro pagamento e non la stessa ricevuta?')) salva(true, bottone, esito);
+        } }));
+        esito.scrollIntoView({ block: 'center' });
         return;
       }
       esito.appendChild(msg('err', j.errore || 'Errore sconosciuto.'));
