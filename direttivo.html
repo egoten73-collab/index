@@ -604,6 +604,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('span', { class: 'menu-txt' }, [h('strong', { text: 'Da verificare' }), conta]),
         h('span', { class: 'menu-freccia', text: '›' })
       ]),
+      voceMenu('💶', 'Registra un pagamento ricevuto', 'Pagamento arrivato in banca o di persona, anche dal vecchio socio (es. morosità saldate al subentro)', function () { vistaScegliInterno('Registra un pagamento ricevuto', vistaPagamentoDirettivo); }),
       voceMenu('📜', 'Letture degli anni passati', 'Inserisci le letture dai bilanci precedenti: i soci le vedono nel loro storico', function () { vistaStoricoScegli(); }),
       voceMenu('🧮', 'Ricalcola le utenze', 'Aggiorna subito dovuto e saldi (lo fa anche ogni notte)', ricalcola)
     ]));
@@ -975,6 +976,128 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       h('p', { text: (b.tipo === 'acqua' ? '💧 Abbanoa ' : '⚡ Enel ') + b.dal + ' – ' + b.al + ' · ' + euro(b.importo) }),
       h('p', { class: 'mut', text: 'Carica la ricevuta del bonifico o del pagamento: viene salvata in Drive insieme alla bolletta.' }),
       box.el, esito, btn, senza]));
+  }
+
+  // ================================================================ pagamenti registrati dal direttivo
+  function vistaScegliInterno(titolo, poi) {
+    svuota(app); app.appendChild(caricamento('Carico gli interni…'));
+    chiama({ azione: 'direttivo_elenco' }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome' }), lista = h('div', { class: 'lista' });
+      function riempi() {
+        svuota(lista); var q = cerca.value.trim().toUpperCase();
+        j.elenco.filter(function (r) { return r.interno !== 'GEN' && trovaRiga(r, q); }).forEach(function (r) {
+          lista.appendChild(h('button', { type: 'button', class: 'menu', onclick: function () { poi(r.interno, r.socio); } }, [
+            h('span', { class: 'ri-num', text: r.interno }), h('span', { class: 'menu-txt' }, [h('strong', { text: r.socio }), r.lotto ? h('small', { text: 'Lotto ' + r.lotto }) : null]), h('span', { class: 'menu-freccia', text: '›' })]));
+        });
+      }
+      cerca.addEventListener('input', riempi); riempi();
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: titolo }), cerca, lista]));
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
+  }
+
+  /** "2026-09 2026-10", "09/2026", "9-2026" -> ['2026-09','2026-10'] */
+  function mesiDaTesto(t) {
+    var out = [], re = /(\d{4})[-\/.](\d{1,2})|(\d{1,2})[-\/.](\d{4})/g, m;
+    while ((m = re.exec(String(t || '')))) {
+      var a = m[1] || m[4], mm = Number(m[2] || m[3]);
+      if (mm >= 1 && mm <= 12) { var k = a + '-' + ('0' + mm).slice(-2); if (out.indexOf(k) < 0) out.push(k); }
+    }
+    return out.sort();
+  }
+
+  function vistaPagamentoDirettivo(interno, socio) {
+    svuota(app); app.appendChild(caricamento('Carico…'));
+    chiama({ azione: 'direttivo_pagatori', interno: interno }).then(function (P) {
+      svuota(app); app.appendChild(indietro(function () { vistaScegliInterno('Registra un pagamento ricevuto', vistaPagamentoDirettivo); }));
+      if (!P.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', P.errore)])); return; }
+      var esito = h('div'), file = null, statoFile = h('div');
+      // chi ha pagato
+      var scelte = [{ nome: P.attuale, vecchio: false, etichetta: P.attuale + ' (socio attuale)' }].concat(P.vecchi.map(function (n) { return { nome: n, vecchio: true, etichetta: n + ' (vecchio socio)' }; }));
+      var radios = [], altroNome = h('input', { type: 'text', placeholder: 'Nome e cognome di chi ha pagato' });
+      var boxPag = h('div');
+      scelte.concat([{ nome: '', vecchio: false, etichetta: 'Un\'altra persona' }]).forEach(function (sc, i) {
+        var r = h('input', { type: 'radio', name: 'pagatore' }); if (i === 0) r.checked = true;
+        r._sc = sc; radios.push(r);
+        boxPag.appendChild(h('label', { class: 'scelta', style: 'display:flex!important' }, [r, ' ' + sc.etichetta]));
+      });
+      boxPag.appendChild(altroNome);
+      var info = [];
+      if (P.arretrati && P.arretrati.vecchio > 0.005) info.push('Debito del vecchio socio ' + P.arretrati.nomeVecchio + ': ' + euro(P.arretrati.vecchio));
+      if (P.arretrati && P.arretrati.socio > 0.005) info.push('Arretrati del socio attuale: ' + euro(P.arretrati.socio));
+      // dati
+      var oggiD = new Date(), data = h('input', { type: 'date', value: oggiD.getFullYear() + '-' + ('0' + (oggiD.getMonth() + 1)).slice(-2) + '-' + ('0' + oggiD.getDate()).slice(-2) });
+      var totale = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'es. 450,00' });
+      var note = h('input', { type: 'text', placeholder: 'es. saldo morosità al subentro, bonifico del notaio…' });
+      var righe = h('div');
+      function nuovaVoce(cat) {
+        var sel = h('select', {}, ['Arretrati', 'Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'].map(function (c) { var o = h('option', { text: c }); o.value = c; if (c === cat) o.selected = true; return o; }));
+        var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'importo €' });
+        var mesi = h('input', { type: 'text', placeholder: 'mesi: es. 2026-09 2026-10' });
+        function vediMesi() { mesi.style.display = sel.value === 'Quota ordinaria' ? '' : 'none'; }
+        sel.addEventListener('change', vediMesi); vediMesi();
+        var r = h('div', { class: 'card', style: 'padding:10px;margin:8px 0' }, [h('div', { class: 'row' }, [sel, imp]), mesi]);
+        r._c = { sel: sel, imp: imp, mesi: mesi };
+        righe.appendChild(r);
+      }
+      nuovaVoce('Arretrati');
+      var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () {
+        var f = fIn.files[0]; if (!f) return; svuota(statoFile); statoFile.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Leggo il file…']));
+        leggiFile(f).then(function (x) { file = x; svuota(statoFile); statoFile.appendChild(msg('ok', '📎 ' + x.nome)); }).catch(function (e) { svuota(statoFile); statoFile.appendChild(msg('err', e.message)); });
+      } });
+      var n = function (t) { return Number(String(t || '').trim().replace(/\./g, '').replace(',', '.')); };
+      var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Registra il pagamento', onclick: function () { salva(false); } });
+      function salva(forza) {
+        svuota(esito);
+        var sc = radios.filter(function (r) { return r.checked; })[0]._sc;
+        var pagatore = sc.nome || altroNome.value.trim();
+        if (!pagatore) { esito.appendChild(msg('err', 'Scrivi il nome di chi ha pagato.')); return; }
+        var tot = n(totale.value);
+        if (!data.value || !(tot > 0)) { esito.appendChild(msg('err', 'Indica data e importo totale.')); return; }
+        var voci = [], errore = '';
+        [].slice.call(righe.children).forEach(function (r, i) {
+          var c = r._c, imp = n(c.imp.value);
+          if (!c.imp.value.trim()) { if (righe.children.length === 1) imp = tot; else return; }   // una sola voce: vale il totale
+          if (!(imp > 0)) { errore = 'Importo non valido nella voce ' + (i + 1) + '.'; return; }
+          var mesi = c.sel.value === 'Quota ordinaria' ? mesiDaTesto(c.mesi.value) : [];
+          voci.push({ interno: interno, categoria: c.sel.value, importo: imp, mesi: mesi, note: sc.vecchio ? 'pagato dal vecchio socio ' + pagatore : '' });
+        });
+        if (errore) { esito.appendChild(msg('err', errore)); return; }
+        if (!voci.length) { esito.appendChild(msg('err', 'Compila almeno una voce con l\'importo.')); return; }
+        var somma = voci.reduce(function (t, x) { return t + x.importo; }, 0);
+        if (Math.abs(somma - tot) > 0.009) { esito.appendChild(msg('err', 'La somma delle voci (' + euro(somma) + ') non è uguale al totale (' + euro(tot) + ').')); return; }
+        if (!file && !forza && !confirm('Registrare il pagamento senza la ricevuta della banca?')) return;
+        btn.disabled = true; btn.textContent = 'Salvataggio…';
+        chiama({ azione: 'salva', utente: 'Direttivo', forza: forza === true,
+          versamento: { data: data.value, importo_totale: tot, socio: pagatore, note: note.value.trim() + (note.value.trim() ? ' | ' : '') + 'registrato dal direttivo', voci: voci },
+          file_base64: file ? file.base64 : '', file_nome: file ? file.nome : '', file_mime: file ? file.mime : '' }).then(function (j) {
+          btn.disabled = false; btn.textContent = 'Registra il pagamento';
+          if (j.ok) {
+            svuota(app); app.appendChild(indietro(vistaMenu));
+            app.appendChild(h('div', { class: 'card' }, [msg('ok', 'Pagamento di ' + euro(tot) + ' registrato per l\'interno ' + interno + ' (pagato da ' + pagatore + ').'),
+              h('button', { type: 'button', class: 'big', text: 'Registra un altro pagamento', onclick: function () { vistaScegliInterno('Registra un pagamento ricevuto', vistaPagamentoDirettivo); } })]));
+            return;
+          }
+          esito.appendChild(msg(j.doppione ? 'warn' : 'err', j.errore || 'Errore.'));
+          if (j.doppione) esito.appendChild(h('button', { type: 'button', class: 'big', text: 'È un pagamento diverso: registra comunque', onclick: function () { salva(true); } }));
+        }).catch(function (e) { btn.disabled = false; btn.textContent = 'Registra il pagamento'; esito.appendChild(msg('err', e.message)); });
+      }
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Int. ' + interno + ' – ' + socio }),
+        info.length ? msg('warn', info.join(' · ')) : null,
+        h('label', { text: 'Chi ha pagato' }), boxPag,
+        h('label', { text: 'Data del pagamento' }), data,
+        h('label', { text: 'Importo totale €' }), totale,
+        h('label', { text: 'Voci (a cosa serve il pagamento)' }),
+        h('p', { class: 'mut', style: 'margin:2px 0', text: 'Arretrati = debiti fino al 2025 e debiti del vecchio socio. Quota ordinaria = mesi (scrivili, es. 2026-09 2026-10). Utenze e Spese extra come al solito.' }),
+        righe,
+        h('button', { type: 'button', class: 'piccolo', text: '+ Aggiungi voce', onclick: function () { nuovaVoce('Quota ordinaria'); } }),
+        h('label', { text: 'Note' }), note,
+        h('label', { text: 'Ricevuta della banca (PDF o foto)' }),
+        h('button', { type: 'button', class: 'big', text: '🧾 Carica la ricevuta / estratto conto', onclick: function () { fIn.click(); } }), fIn, statoFile,
+        esito, btn]));
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
 
   // ================================================================ letture degli anni passati
