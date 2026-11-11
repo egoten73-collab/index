@@ -604,6 +604,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('span', { class: 'menu-txt' }, [h('strong', { text: 'Da verificare' }), conta]),
         h('span', { class: 'menu-freccia', text: '›' })
       ]),
+      voceMenu('📄', 'Estratti conto da stampare', 'PDF con il logo, come i solleciti: per un socio o per tutti', vistaEstratti),
       voceMenu('💶', 'Registra un pagamento ricevuto', 'Pagamento arrivato in banca o di persona, anche dal vecchio socio (es. morosità saldate al subentro)', function () { vistaScegliInterno('Registra un pagamento ricevuto', vistaPagamentoDirettivo); }),
       voceMenu('📜', 'Letture degli anni passati', 'Inserisci le letture dai bilanci precedenti: i soci le vedono nel loro storico', function () { vistaStoricoScegli(); }),
       voceMenu('🧮', 'Ricalcola le utenze', 'Aggiorna subito dovuto e saldi (lo fa anche ogni notte)', ricalcola)
@@ -976,6 +977,42 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       h('p', { text: (b.tipo === 'acqua' ? '💧 Abbanoa ' : '⚡ Enel ') + b.dal + ' – ' + b.al + ' · ' + euro(b.importo) }),
       h('p', { class: 'mut', text: 'Carica la ricevuta del bonifico o del pagamento: viene salvata in Drive insieme alla bolletta.' }),
       box.el, esito, btn, senza]));
+  }
+
+  // ================================================================ estratti conto
+  function creaEstratto(dati, box) {
+    svuota(box); box.appendChild(h('p', {}, [h('span', { class: 'spin' }), dati.tutti ? 'Preparo il PDF di tutti i soci: può richiedere uno o due minuti…' : 'Preparo il PDF…']));
+    chiama(Object.assign({ azione: 'direttivo_estratto' }, dati)).then(function (j) {
+      svuota(box);
+      if (!j.ok) { box.appendChild(msg('err', j.errore || 'Errore.')); return; }
+      box.appendChild(msg('ok', '📄 ' + j.nome + (dati.tutti ? ' – ' + j.soci + ' soci, ' + j.daVersare + ' con importi da versare' : '')));
+      box.appendChild(h('a', { href: j.url, target: '_blank', rel: 'noopener', class: 'big pri', style: 'display:block;text-align:center;text-decoration:none;padding:14px;border-radius:12px', text: 'Apri il PDF (da lì stampa o scarica)' }));
+      box.appendChild(h('p', { class: 'mut', text: 'Il PDF è salvato in Drive nella cartella "Estratti conto".' }));
+    }).catch(function (e) { svuota(box); box.appendChild(msg('err', e.message)); });
+  }
+
+  function vistaEstratti() {
+    svuota(app); app.appendChild(caricamento('Carico gli interni…'));
+    chiama({ azione: 'direttivo_elenco' }).then(function (j) {
+      svuota(app); app.appendChild(indietro(vistaMenu));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      var boxTutti = h('div');
+      app.appendChild(h('div', { class: 'card' }, [
+        h('h2', { text: 'Estratti conto' }),
+        h('p', { class: 'mut', text: 'Per ogni socio: arretrati fino al 2025, quote scadute, utenze e spese straordinarie, con a debito, versato e residuo. Il totale è lo stesso della scheda morosi.' }),
+        h('button', { type: 'button', class: 'pri big', text: '📄 Crea il PDF di tutti i soci', onclick: function () { creaEstratto({ tutti: true }, boxTutti); } }), boxTutti]));
+      var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome' }), lista = h('div', { class: 'lista' });
+      function riempi() {
+        svuota(lista); var q = cerca.value.trim().toUpperCase();
+        j.elenco.filter(function (r) { return r.interno !== 'GEN' && trovaRiga(r, q); }).forEach(function (r) {
+          var box = h('div');
+          lista.appendChild(h('div', {}, [h('button', { type: 'button', class: 'menu', onclick: function () { creaEstratto({ interno: r.interno }, box); } }, [
+            h('span', { class: 'ri-num', text: r.interno }), h('span', { class: 'menu-txt' }, [h('strong', { text: r.socio }), r.lotto ? h('small', { text: 'Lotto ' + r.lotto }) : null]), h('span', { class: 'menu-freccia', text: '📄' })]), box]));
+        });
+      }
+      cerca.addEventListener('input', riempi); riempi();
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Un solo socio' }), cerca, lista]));
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(vistaMenu)); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
 
   // ================================================================ pagamenti registrati dal direttivo
