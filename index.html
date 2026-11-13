@@ -486,13 +486,25 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       var iso2 = dataValida(+m[1], MESI_NOMI.indexOf(m[2]) + 1, +m[3]);
       if (iso2) trovate.push({ iso: iso2, pos: m.index, etic: false });
     }
+    // 2026-11-11 (formato internazionale, es. Revolut)
+    re = /\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/g;
+    while ((m = re.exec(t))) {
+      var iso3 = dataValida(+m[3], +m[2], +m[1]);
+      if (iso3) trovate.push({ iso: iso3, pos: m.index, etic: /data|esegu|valuta|operazione|bonifico/.test(t.slice(Math.max(0, m.index - 30), m.index)) });
+    }
+    // 11 nov 2026
+    re = /(?<![\d,.])\b(\d{1,2})\s+(gen|feb|mar|apr|mag|giu|lug|ago|set|sett|ott|nov|dic)\.?\s+(20\d{2})\b/g;
+    while ((m = re.exec(t))) {
+      var iso4 = dataValida(+m[1], MESI_ABBR[m[2]], +m[3]);
+      if (iso4) trovate.push({ iso: iso4, pos: m.index, etic: false });
+    }
     if (!trovate.length) return null;
     var et = trovate.filter(function (x) { return x.etic; });
     return (et[0] || trovate[0]).iso;
   }
 
   function togliDate(t) {
-    return t.replace(/\b\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*(?:\d{4}|\d{2})\b/g, ' ')
+    return t.replace(/\b20\d{2}-\d{1,2}-\d{1,2}\b/g, ' ').replace(/\b\d{1,2}\s*[\/.\-]\s*\d{1,2}\s*[\/.\-]\s*(?:\d{4}|\d{2})\b/g, ' ')
       .replace(new RegExp('(?<![\\d,.])\\b\\d{1,2}\\s+(?:' + MESI_NOMI.map(senzaAccenti).join('|') + ')\\s+\\d{4}\\b', 'gi'), ' ');
   }
 
@@ -699,7 +711,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   function categorieCitate(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase(), out = [];
     var vecchie = /depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t);
-    if (/quota|ordinari|mensilit|canone/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
+    if (/quota|ordinari|mensilit|canone|condomin/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
     if (!vecchie && /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
     if (vecchie || (/arretrat|pregress|morosit/.test(t) && out.indexOf('Utenze') < 0)) out.push('Arretrati');
@@ -755,7 +767,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     return t.split(/\s+/).filter(function (x) { return x.length >= 2; });
   }
 
-  function abbinaSocio(interniTrovati, testoNome, testoCompleto, soci) {
+  function abbinaSocio(interniTrovati, testoNome, testoCompleto, soci, testoCausale) {
     var res = { socio: null, candidati: [], metodo: null, avvisi: [] };
     if (!soci || !soci.length) { res.avvisi.push('Elenco soci non disponibile: scrivi nome e interno a mano.'); return res; }
 
@@ -790,7 +802,8 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       return out;
     }
     var perNome = [];
-    [testoNome, testoCompleto].some(function (txt) {
+    // prima il nome scritto nella causale (per chi si paga), poi chi ha pagato, poi tutto il testo
+    [testoCausale, testoNome, testoCompleto].some(function (txt) {
       if (!txt) return false;
       var p = punteggi(txt).filter(function (x) { return x.score === 1 && x.hit >= 2; });
       if (p.length) { perNome = p.map(function (x) { return x.socio; }); return true; }
@@ -829,7 +842,7 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
     if (!interni.length) interni = trovaInterni(testo);
     var nomeTesto = ordinante || '';
     var senzaBenef = testo.split('\n').filter(function (l) { return RE_ETICH_BENEF.test(l) || !/beneficiario|a favore di|golfo dei fenici|iban|c\/c/i.test(l); }).join('\n') + '\n' + causale;
-    var socio = (soci && soci.length) ? abbinaSocio(interni, nomeTesto, senzaBenef, soci) : { socio: null, candidati: [], avvisi: [], metodo: null };
+    var socio = (soci && soci.length) ? abbinaSocio(interni, nomeTesto, senzaBenef, soci, causale) : { socio: null, candidati: [], avvisi: [], metodo: null };
     var voci = trovaVoci(causale || testo, imp.totale, anno);
     var avvisi = socio.avvisi.slice();
     if (!imp.totale) avvisi.push('Importo non riconosciuto: scrivilo a mano.');
@@ -1553,13 +1566,17 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
         for (var i = 1; i <= n; i++) (function (num) {
           p = p.then(function () { return pdf.getPage(num); }).then(function (pg) { return pg.getTextContent(); })
             .then(function (tc) {
-              var riga = '', ultimaY = null;
-              tc.items.forEach(function (it) {
-                var y = it.transform[5];
-                if (ultimaY !== null && Math.abs(y - ultimaY) > 2) { testo += riga + '\n'; riga = ''; }
-                riga += it.str + ' '; ultimaY = y;
+              // righe ricostruite dalla POSIZIONE sulla pagina (dall'alto, da sinistra), non dall'ordine interno del PDF:
+              // cosi' "Causale" e il suo testo finiscono sulla stessa riga anche nelle ricevute di Revolut e simili
+              var pezzi = tc.items.filter(function (it) { return String(it.str).trim(); })
+                .map(function (it) { return { s: it.str, x: it.transform[4], y: it.transform[5] }; })
+                .sort(function (a, b) { return Math.abs(b.y - a.y) > 2 ? b.y - a.y : a.x - b.x; });
+              var righe = [];
+              pezzi.forEach(function (p) {
+                var r = righe[righe.length - 1];
+                if (r && Math.abs(r.y - p.y) <= 2) r.p.push(p); else righe.push({ y: p.y, p: [p] });
               });
-              testo += riga + '\n';
+              righe.forEach(function (r) { testo += r.p.sort(function (a, b) { return a.x - b.x; }).map(function (p) { return p.s; }).join(' ') + '\n'; });
             });
         })(i);
         return p.then(function () {
