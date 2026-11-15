@@ -688,7 +688,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
   }
 
   // ------------------------------------------------------------------ categorie
-  var RE_UTENZE = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/;
+  var RE_UTENZE = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/;
 
   function indovinaCategoria(testo) {
     var t = senzaAccenti(String(testo)).toLowerCase();
@@ -698,7 +698,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     // voci dei solleciti dell'amministratore (anni passati): stanno negli arretrati
     if (/depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t)) return 'Arretrati';
     if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) return 'Spese extra';
-    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) return 'Utenze';
+    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t)) return 'Utenze';
     if (/quota|ordinari|condomin|\brata\b|annuale|associativ|spese\s+general/.test(t)) return 'Quota ordinaria';
     return 'Altro';
   }
@@ -707,7 +707,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     if (indovinaCategoria(chunk) === 'Arretrati') return 'Arretrati';
     var t = senzaAccenti(String(chunk)).toLowerCase();
     var isExtra = /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion/.test(t);
-    var isUtenze = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t);
+    var isUtenze = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t);
     if (isExtra && !isUtenze) return 'Spese extra';
     if (isUtenze && !isExtra) return 'Utenze';
     return indovinaCategoria(chunk);
@@ -723,7 +723,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     var t = senzaAccenti(String(testo)).toLowerCase(), out = [];
     var vecchie = /depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t);
     if (/quota|ordinari|mensilit|canone|condomin/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
-    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bolletta|contator/.test(t)) out.push('Utenze');
+    if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t)) out.push('Utenze');
     if (!vecchie && /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
     if (vecchie || (/arretrat|pregress|morosit/.test(t) && out.indexOf('Utenze') < 0)) out.push('Arretrati');
     return out;
