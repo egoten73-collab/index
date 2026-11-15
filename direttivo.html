@@ -1430,6 +1430,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
               h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio + (r.lotto ? ' · lotto ' + r.lotto : '') }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
               h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)].concat(r.arretrati ? [cifra('Arretr.', r.arretrati)] : [])
                 .concat(r.senzaRicevuta ? [h('span', { class: 'cifra', style: 'color:var(--err)', text: 'Ricevute mancanti: ' + r.senzaRicevuta + (r.senzaRicevuta === 1 ? ' mese' : ' mesi') })] : [])
+                .concat(r.pagatiDueVolte && r.pagatiDueVolte.length ? [h('span', { class: 'cifra', style: 'color:var(--warn)', text: '⚠️ Pagato due volte: ' + r.pagatiDueVolte.join('; ') })] : [])
                 .concat(r.exSocio ? [h('span', { class: 'cifra', text: 'Vecchio socio ' + r.exSocio.socio + ': ' + euro(r.exSocio.saldo) })] : []))
             ]));
           });

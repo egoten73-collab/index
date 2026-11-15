@@ -129,6 +129,9 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
 .mq small{display:block;font-size:10px;text-transform:none;color:var(--err);margin-top:1px}
 .mq.manca{border-color:rgba(232,104,90,.7);background:rgba(232,104,90,.10)}
 .mq.manca b{color:var(--err)}
+.anno-ut{border:1px solid var(--br);border-radius:10px;padding:8px 10px;margin:6px 0}
+.anno-ut summary{cursor:pointer;font-weight:600;color:var(--tx)}
+.periodo-ut{border-left:3px solid var(--br);padding:4px 0 4px 10px;margin:8px 0;font-size:13px;line-height:1.45}
 .legenda-mq{margin:8px 0 2px;font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:4px 14px}
 .pall{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;border:1px solid}
 .pall.pag{border-color:rgba(127,200,160,.8);background:rgba(127,200,160,.25)}
@@ -1414,6 +1417,41 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
       cu.appendChild(h('p', { class: 'mut', text: 'Per ora non ci sono addebiti di utenze.' }));
       var LL = j.letture || {};
       if (LL.acqua || LL.luce) cu.appendChild(h('p', { class: 'mut', text: 'Il costo si calcola sul consumo, cioè sulla differenza tra due letture: con la tua prossima lettura vedrai quanto hai consumato e quanto costa.' }));
+    }
+    // dettaglio di ogni anno: letture iniziali e finali, scatti, prezzo e importo (spiega il riporto)
+    // l'anno mostrato sopra senza consumi non si ripete
+    var UA = (j.utenzeAnni || []).filter(function (y) { return y.periodi.length || (y.versato && !(u && y.anno === u.anno)); });
+    if (UA.length) {
+      if (u && !Number(u.acquaM3) && !Number(u.luceKwh) && Number(u.riporto)) {
+        cu.appendChild(h('p', { class: 'mut', style: 'margin:10px 0 0', text: 'Nel ' + u.anno + ' non ci sono ancora consumi da addebitare (servono due letture). L\'importo viene dagli anni precedenti: trovi il dettaglio qui sotto.' }));
+      }
+      cu.appendChild(h('h3', { style: 'margin:16px 0 6px;font-size:15px', text: 'Letture e consumi per anno' }));
+      UA.forEach(function (y, i) {
+        var corpo = h('div');
+        if (!y.periodi.length) corpo.appendChild(h('p', { class: 'mut', text: 'Nessun consumo addebitato in questo anno.' }));
+        y.periodi.forEach(function (p) {
+          var un = p.tipo === 'acqua' ? 'm³' : 'kWh';
+          var letture = (p.letDal !== null && p.letDal !== undefined ? numIt(p.letDal) : '?') + ' → ' + (p.letAl !== null && p.letAl !== undefined ? numIt(p.letAl) : '?');
+          corpo.appendChild(h('div', { class: 'periodo-ut' }, [
+            h('strong', { text: (p.tipo === 'acqua' ? '💧 Acqua' : '⚡ Luce') + ' · ' + (p.dal || '…') + ' → ' + p.al }),
+            h('div', { text: 'Letture del contatore: ' + letture + '  =  ' + numIt(p.consumo) + ' ' + un + ' consumati' }),
+            h('div', { text: numIt(p.consumo) + ' ' + un + ' × € ' + numIt(p.prezzo, p.tipo === 'acqua' ? 2 : 3) + ' = € ' + numIt(p.importo, 2) +
+              (p.statoPrezzo && !/definitiv/i.test(p.statoPrezzo) ? ' (prezzo ' + p.statoPrezzo + ')' : '') }),
+            p.conguaglio ? h('div', { text: 'Conguaglio: € ' + numIt(p.conguaglio, 2) }) : null,
+            p.nota ? h('div', { class: 'mut', text: p.nota }) : null
+          ]));
+        });
+        var tt = h('table', { class: 'sit', style: 'margin-top:6px' });
+        if (y.riporto) tt.appendChild(riga('Dagli anni precedenti', '€ ' + numIt(y.riporto, 2)));
+        tt.appendChild(riga('Consumi ' + y.anno + (y.conguagli ? ' (con conguagli)' : ''), '€ ' + numIt(y.acqua + y.luce + (y.conguagli || 0), 2)));
+        tt.appendChild(riga('Versato nel ' + y.anno, '€ ' + numIt(y.versato, 2)));
+        tt.appendChild(riga(y.saldo > 0.5 ? 'Restava da versare' : y.saldo < -0.5 ? 'A tuo credito' : 'Saldo', '€ ' + numIt(Math.abs(y.saldo), 2), 'tot'));
+        corpo.appendChild(tt);
+        if (i > 0 || UA.length === 1) corpo.appendChild(h('p', { class: 'mut', style: 'margin:4px 0 0', text: 'Il saldo di fine anno passa all\'anno successivo.' }));
+        var det = h('details', { class: 'anno-ut' }, [h('summary', { text: 'Utenze ' + y.anno + ' – ' + (y.saldo > 0.5 ? 'da versare € ' + numIt(y.saldo, 2) : y.saldo < -0.5 ? 'credito € ' + numIt(-y.saldo, 2) : 'in pari') }), corpo]);
+        if (i === 0 || (i === 1 && !UA[0].periodi.length)) det.open = true;
+        cu.appendChild(det);
+      });
     }
     if (j.prezzi && (j.prezzi.acqua || j.prezzi.luce)) {
       var tp = h('table', { class: 'sit', style: 'margin-top:10px' });
