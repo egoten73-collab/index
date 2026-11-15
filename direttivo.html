@@ -125,6 +125,14 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 .mq b{display:block;font-size:14px;color:var(--tx);font-weight:500;margin-top:2px}
 .mq.pag{border-color:rgba(127,200,160,.5);background:rgba(127,200,160,.06)}
 .mq.pag b{color:var(--ok)}
+button.mq{font:inherit;cursor:pointer;width:100%;background:none}
+.mq small{display:block;font-size:10px;text-transform:none;color:var(--err);margin-top:1px}
+.mq.manca{border-color:rgba(232,104,90,.7);background:rgba(232,104,90,.10)}
+.mq.manca b{color:var(--err)}
+.legenda-mq{margin:8px 0 2px;font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:4px 14px}
+.pall{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;border:1px solid}
+.pall.pag{border-color:rgba(127,200,160,.8);background:rgba(127,200,160,.25)}
+.pall.manca{border-color:rgba(232,104,90,.8);background:rgba(232,104,90,.25)}
 .lista{display:flex;flex-direction:column;gap:6px;margin-top:10px;max-height:62vh;overflow:auto;padding-right:2px}
 .riga-int{display:flex;align-items:center;gap:12px;text-align:left;padding:10px 12px;border-radius:12px}
 .riga-int.fatto{border-color:rgba(127,200,160,.5);background:rgba(127,200,160,.06)}
@@ -1421,6 +1429,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
             lista.appendChild(h('div', { class: 'riga-sit' }, [
               h('div', { class: 'rs-testa' }, [h('span', { class: 'ri-num', text: r.interno }), h('strong', { text: r.socio + (r.lotto ? ' · lotto ' + r.lotto : '') }), h('span', { class: 'rs-tot', text: r.totale > 0.5 ? euro(r.totale) : 'in regola' })]),
               h('div', { class: 'rs-cifre' }, [cifra('Utenze', r.utenze), cifra('Quote', r.quote), cifra('Straord.', r.straordinarie)].concat(r.arretrati ? [cifra('Arretr.', r.arretrati)] : [])
+                .concat(r.senzaRicevuta ? [h('span', { class: 'cifra', style: 'color:var(--err)', text: 'Ricevute mancanti: ' + r.senzaRicevuta + (r.senzaRicevuta === 1 ? ' mese' : ' mesi') })] : [])
                 .concat(r.exSocio ? [h('span', { class: 'cifra', text: 'Vecchio socio ' + r.exSocio.socio + ': ' + euro(r.exSocio.saldo) })] : []))
             ]));
           });

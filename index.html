@@ -125,6 +125,14 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 .mq b{display:block;font-size:14px;color:var(--tx);font-weight:500;margin-top:2px}
 .mq.pag{border-color:rgba(127,200,160,.5);background:rgba(127,200,160,.06)}
 .mq.pag b{color:var(--ok)}
+button.mq{font:inherit;cursor:pointer;width:100%;background:none}
+.mq small{display:block;font-size:10px;text-transform:none;color:var(--err);margin-top:1px}
+.mq.manca{border-color:rgba(232,104,90,.7);background:rgba(232,104,90,.10)}
+.mq.manca b{color:var(--err)}
+.legenda-mq{margin:8px 0 2px;font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:4px 14px}
+.pall{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;border:1px solid}
+.pall.pag{border-color:rgba(127,200,160,.8);background:rgba(127,200,160,.25)}
+.pall.manca{border-color:rgba(232,104,90,.8);background:rgba(232,104,90,.25)}
 </style>
 </head>
 <body>
@@ -1113,13 +1121,18 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
   function caricamento(testo) { return h('div', { class: 'card' }, [h('p', { style: 'margin:0' }, [h('span', { class: 'spin' }), testo])]); }
 
   // ---------------------------------------------------------------- distinta
-  function vistaDistinta() {
+  var mesePreselezionato = null;   // mese scelto toccandolo in "La mia situazione" (es. '2026-03')
+
+  function vistaDistinta(mese) {
     svuota(app); stato = null;
+    mesePreselezionato = /^\d{4}-\d{2}$/.test(String(mese || '')) ? mese : null;
     app.appendChild(indietro());
+    var nomiM = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
     var fCam = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hide', onchange: function () { scelto(fCam.files[0]); } });
     var fFile = h('input', { type: 'file', accept: 'image/*,application/pdf', class: 'hide', onchange: function () { scelto(fFile.files[0]); } });
     app.appendChild(h('div', { class: 'card' }, [
       h('h2', { text: 'Carica la distinta di versamento' }),
+      mesePreselezionato ? msg('ok', 'Ricevuta per ' + nomiM[+mesePreselezionato.slice(5, 7) - 1] + ' ' + mesePreselezionato.slice(0, 4) + '. Se la distinta paga anche altri mesi o altre voci (utenze, arretrati…) le trovo leggendola.') : null,
       h('button', { class: 'pri big', type: 'button', text: '📷 Scatta una foto', onclick: function () { fCam.click(); } }),
       h('button', { class: 'big', type: 'button', text: '📄 Scegli un file (PDF o foto)', onclick: function () { fFile.click(); } }),
       fCam, fFile,
@@ -1413,9 +1426,19 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
 
     if (j.quote) {
       var q = j.quote, griglia = h('div', { class: 'mesi-q' });
+      var nomiMesi = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
       q.mesi.forEach(function (m) {
-        griglia.appendChild(h('div', { class: 'mq' + (m.importo > 0 ? ' pag' : '') }, [m.mese, h('b', { text: m.importo > 0 ? '€ ' + numIt(m.importo, 0) : '–' })]));
+        var cls = 'mq' + (m.stato === 'senza' ? ' manca' : m.importo > 0 ? ' pag' : '');
+        var chiave = m.chiave || (q.anno + '-' + ('0' + (q.mesi.indexOf(m) + 1)).slice(-2));
+        // tocca un mese per caricare la ricevuta di quel mese
+        griglia.appendChild(h('button', { type: 'button', class: cls, title: 'Carica la ricevuta di ' + nomiMesi[+chiave.slice(5, 7) - 1],
+          onclick: function () { vistaDistinta(chiave); } }, [m.mese, h('b', { text: m.importo > 0 ? '€ ' + numIt(m.importo, 0) : '–' }), m.stato === 'senza' ? h('small', { text: 'ricevuta?' }) : null]));
       });
+      var senza = (q.senzaRicevuta || []);
+      var legenda = h('div', { class: 'legenda-mq' }, [
+        h('span', {}, [h('i', { class: 'pall pag' }), ' pagato con ricevuta']),
+        h('span', {}, [h('i', { class: 'pall manca' }), ' registrato senza ricevuta: ci serve la ricevuta']),
+        h('p', { class: 'mut', style: 'margin:4px 0 0', text: 'Tocca un mese per caricare la ricevuta di quel mese.' })]);
       var diff = Number(q.differenza) || 0, resto = Number(q.restoAnno) || 0;
       var oggiQ = q.dovutoOggi !== undefined ? Number(q.dovutoOggi) || 0 : Number(q.dovuto) || 0;
       var tq = h('table', { class: 'sit', style: 'margin-top:10px' }, [
@@ -1428,7 +1451,9 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       if (prec > 0.5) tq.appendChild(riga('Quote non pagate degli anni precedenti', '€ ' + numIt(prec, 2), 'tot'));
       else if (prec < -0.5) tq.appendChild(riga('Credito dagli anni precedenti', '€ ' + numIt(-prec, 2)));
       if (resto > 0.5) tq.appendChild(riga('Da versare entro fine anno', '€ ' + numIt(resto, 2)));
-      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Quote ' + q.anno }), griglia, tq,
+      var avvisoRic = senza.length ? msg('warn', 'Ci mancano le ricevute di: ' + senza.map(function (c) { return nomiMesi[+c.slice(5, 7) - 1]; }).join(', ') + ' ' + q.anno +
+        '. Risultano pagati dai conti dell\'amministratore, ma per completare la tua posizione caricale toccando il mese (in rosso). Non pagherai due volte: la ricevuta prende il posto della registrazione.') : null;
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Quote ' + q.anno }), avvisoRic, griglia, legenda, tq,
         h('p', { class: 'mut', text: 'Il mese in corso e quelli successivi non sono ancora scaduti.' })]));
     }
 
@@ -1619,6 +1644,21 @@ table.sit tr.tot td{font-weight:600;color:var(--oro2);border-bottom:none;font-si
       note: ''
     };
     if (!stato.voci.length) stato.voci.push({ categoria: 'Quota ordinaria', importo: '', acconto: false, mesi: [], note: '', interno: socio.interni[0], annoVista: a.anno || new Date().getFullYear() });
+    // mese scelto dalla situazione: se la distinta non indica mesi, vale quel mese; se ne indica altri, avviso
+    if (mesePreselezionato) {
+      var mp = mesePreselezionato; mesePreselezionato = null;
+      var quote = stato.voci.filter(function (v) { return v.categoria === 'Quota ordinaria'; });
+      if (!quote.length) {
+        var vuota = stato.voci.filter(function (v) { return v.categoria === 'Altro' && !v.mesi.length; })[0];
+        if (vuota) { vuota.categoria = 'Quota ordinaria'; quote = [vuota]; }
+      }
+      if (quote.length && !quote.some(function (v) { return v.mesi.length; })) { quote[0].mesi = [mp]; quote[0].annoVista = +mp.slice(0, 4); }
+      else if (quote.length && !quote.some(function (v) { return v.mesi.indexOf(mp) >= 0; })) {
+        stato.avvisi.push('Hai scelto il mese ' + mp + ', ma nella distinta trovo ' + quote.map(function (v) { return v.mesi.join(', '); }).join(' / ') + '. Controlla i mesi prima di inviare.');
+      } else if (!quote.length) {
+        stato.avvisi.push('Hai scelto il mese ' + mp + ', ma la distinta non sembra una quota: controlla la voce.');
+      }
+    }
     // Causale mista (es. quota + utenze) senza importi separati: la quota si calcola dai mesi, il resto va all'altra voce
     if (a.voci.some(function (v) { return v.daDividere; }) && a.totale && stato.voci.length === 2) {
       var q = stato.voci.filter(function (v) { return v.categoria === 'Quota ordinaria'; })[0];
