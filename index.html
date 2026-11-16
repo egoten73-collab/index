@@ -694,9 +694,9 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     var t = senzaAccenti(String(testo)).toLowerCase();
     // "utenze arretrate", "morosita' luce": le utenze vecchie stanno nel conto Utenze (con il riporto), non negli arretrati
     if (/arretrat|pregress|morosit/.test(t) && RE_UTENZE.test(t)) return 'Utenze';
-    if (/arretrat|pregress|morosit/.test(t)) return 'Arretrati';
+    if (/arretrat|pregress|morosit/.test(t)) return 'Morosità';
     // voci dei solleciti dell'amministratore (anni passati): stanno negli arretrati
-    if (/depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t)) return 'Arretrati';
+    if (/depurator|messa\s*a\s*norma|osservanza|saldo\s*iniziale/.test(t) && !/\b20(2[6-9]|[3-9]\d)\b/.test(t)) return 'Morosità';
     if (/spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) return 'Spese extra';
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t)) return 'Utenze';
     if (/quota|ordinari|condomin|\brata\b|annuale|associativ|spese\s+general/.test(t)) return 'Quota ordinaria';
@@ -704,7 +704,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
   }
 
   function categoriaDaChunk(chunk) {
-    if (indovinaCategoria(chunk) === 'Arretrati') return 'Arretrati';
+    if (indovinaCategoria(chunk) === 'Morosità') return 'Morosità';
     var t = senzaAccenti(String(chunk)).toLowerCase();
     var isExtra = /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion/.test(t);
     var isUtenze = /utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t);
@@ -725,7 +725,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     if (/quota|ordinari|mensilit|canone|condomin/.test(t) || (!vecchie && /\brata\b/.test(t))) out.push('Quota ordinaria');
     if (/utenz|\bacqua\b|\bluce\b|energia|\benel\b|\bgas\b|consum|bollett|contator/.test(t)) out.push('Utenze');
     if (!vecchie && /spes[ae]\s*extra|\bextra\b|straordinar|lavori|manutenzion|una\s*tantum/.test(t)) out.push('Spese extra');
-    if (vecchie || (/arretrat|pregress|morosit/.test(t) && out.indexOf('Utenze') < 0)) out.push('Arretrati');
+    if (vecchie || (/arretrat|pregress|morosit/.test(t) && out.indexOf('Utenze') < 0)) out.push('Morosità');
     return out;
   }
 
@@ -890,7 +890,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
   var PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   var TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
   var MAX_BYTE = 12 * 1024 * 1024;
-  var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Arretrati', 'Altro'];
+  var CATEGORIE = ['Quota ordinaria', 'Utenze', 'Spese extra', 'Morosità', 'Altro'];
 
   var app = document.getElementById('app');
   // ---- COLLEGAMENTO FISSO -------------------------------------------------
@@ -1504,7 +1504,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
       var docu = A.documentati || [];
       ta.appendChild(riga(sar > 0.5 ? 'Da versare' : sar < -0.5 ? 'A tuo credito' : 'Saldato', sar > 0.5 || sar < -0.5 ? '€ ' + numIt(Math.abs(sar), 2) : '✓', 'tot'));
       app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Arretrati anni precedenti' }),
-        h('p', { class: 'mut', style: 'margin-top:0', text: 'Importi non pagati negli anni passati per questo interno. Per pagarli usa la causale "Arretrati".' }), ta,
+        h('p', { class: 'mut', style: 'margin-top:0', text: 'Importi non pagati negli anni passati per questo interno. Per pagarli scegli il tipo "Morosità": il programma divide da solo il versamento sui debiti.' }), ta,
         docu.length ? h('p', { class: 'mut', style: 'margin:8px 0 0', text: '✓ Ricevute caricate per mesi che risultavano già pagati all\'amministratore (' + docu.map(function (m) { return m.slice(5, 7) + '/' + m.slice(0, 4); }).join(', ') + '): servono come prova del pagamento, non cambiano il conto.' }) : null]));
     }
 
@@ -1771,16 +1771,17 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
 
   function cardVoce(v, i, quadr) {
     var box = h('div', { class: 'voce' });
-    var sel = h('select', { onchange: function () { v.categoria = sel.value; aggiornaInfoQuota(); } });
+    var sel = h('select', { onchange: function () { v.categoria = sel.value; aggiornaInfoQuota(); anteprimaMorosita(v, boxMor); } });
+    var boxMor = h('div', { class: 'mut', style: 'margin:6px 0' });
     CATEGORIE.forEach(function (c) { var o = h('option', { value: c, text: c }); if (c === v.categoria) o.selected = true; sel.appendChild(o); });
-    box.appendChild(h('label', { text: 'Tipo' })); box.appendChild(sel);
+    box.appendChild(h('label', { text: 'Tipo' })); box.appendChild(sel); box.appendChild(boxMor);
     var unica = stato.voci.length === 1;
     if (!unica) {
-      var imp = h('input', { type: 'text', inputmode: 'decimal', value: v.importo, oninput: function () { v.importo = imp.value; aggiornaQuadratura(quadr); } });
+      var imp = h('input', { type: 'text', inputmode: 'decimal', value: v.importo, oninput: function () { v.importo = imp.value; aggiornaQuadratura(quadr); }, onchange: function () { anteprimaMorosita(v, boxMor); } });
       box.appendChild(h('label', { text: 'Importo (€)' })); box.appendChild(imp);
     }
     if (socio.interni.length > 1 && !stato.ripartisci) {
-      var si = h('select', { onchange: function () { v.interno = si.value; } });
+      var si = h('select', { onchange: function () { v.interno = si.value; anteprimaMorosita(v, boxMor); } });
       socio.interni.forEach(function (n) { var o = h('option', { value: n, text: 'Interno ' + n }); if (n === v.interno) o.selected = true; si.appendChild(o); });
       box.appendChild(h('label', { text: 'Per quale interno' })); box.appendChild(si);
     }
@@ -1811,11 +1812,28 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     box.appendChild(info);
     stato._info.push({ v: v, el: info });
     disegnaMesi();
+    anteprimaMorosita(v, boxMor);
 
     var nt = h('input', { type: 'text', value: v.note, placeholder: 'Note sulla voce (facoltativo)', oninput: function () { v.note = nt.value; } });
     box.appendChild(nt);
     if (!unica) box.appendChild(h('button', { type: 'button', style: 'margin-top:8px', text: 'Rimuovi questa voce', onclick: function () { stato.voci.splice(i, 1); vistaRevisione(); } }));
     return box;
+  }
+
+  // "Morosità": il programma divide da solo l'importo su quello che risulta da pagare. Qui si mostra come.
+  function anteprimaMorosita(v, el) {
+    svuota(el);
+    if (v.categoria !== 'Morosità') return;
+    var importo = stato.voci.length === 1 ? numero(stato.totale) : numero(v.importo);
+    var interno = v.interno || socio.interni[0];
+    el.appendChild(h('div', { text: 'Morosità: l\'importo viene diviso in automatico sui debiti, dal più vecchio (arretrati fino al 2025, quote scadute, utenze, spese straordinarie). I mesi qui sotto non servono.' }));
+    if (!(importo > 0)) return;
+    var riga = h('div', { style: 'margin-top:4px;color:var(--tx)', text: 'Calcolo della divisione…' });
+    el.appendChild(riga);
+    var codici = leggi('distinte_codici') || {};
+    chiama({ azione: 'ripartizione', interno: interno, importo: importo, codice: codici[interno] }).then(function (j) {
+      riga.textContent = j && j.ok ? '➜ ' + j.testo : (j && j.errore) || 'Divisione non disponibile: verrà fatta al momento dell\'invio.';
+    }).catch(function () { riga.textContent = 'Divisione non disponibile ora: verrà fatta al momento dell\'invio.'; });
   }
 
   // Confronto tra importo della voce e quota prevista (es. 30 € al mese)

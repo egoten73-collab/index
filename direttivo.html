@@ -129,6 +129,9 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
 .mq small{display:block;font-size:10px;text-transform:none;color:var(--err);margin-top:1px}
 .mq.manca{border-color:rgba(232,104,90,.7);background:rgba(232,104,90,.10)}
 .mq.manca b{color:var(--err)}
+.anno-ut{border:1px solid var(--br);border-radius:10px;padding:8px 10px;margin:6px 0}
+.anno-ut summary{cursor:pointer;font-weight:600;color:var(--tx)}
+.periodo-ut{border-left:3px solid var(--br);padding:4px 0 4px 10px;margin:8px 0;font-size:13px;line-height:1.45}
 .legenda-mq{margin:8px 0 2px;font-size:12px;color:var(--mut);display:flex;flex-wrap:wrap;gap:4px 14px}
 .pall{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;border:1px solid}
 .pall.pag{border-color:rgba(127,200,160,.8);background:rgba(127,200,160,.25)}
@@ -1075,23 +1078,34 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
       var oggiD = new Date(), data = h('input', { type: 'date', value: oggiD.getFullYear() + '-' + ('0' + (oggiD.getMonth() + 1)).slice(-2) + '-' + ('0' + oggiD.getDate()).slice(-2) });
       var totale = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'es. 450,00' });
       var note = h('input', { type: 'text', placeholder: 'es. saldo morosità al subentro, bonifico del notaio…' });
+      var n = function (t) { return Number(String(t || '').trim().replace(/\./g, '').replace(',', '.')); };
       var righe = h('div');
       function nuovaVoce(cat) {
-        var sel = h('select', {}, ['Arretrati', 'Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'].map(function (c) { var o = h('option', { text: c }); o.value = c; if (c === cat) o.selected = true; return o; }));
+        var sel = h('select', {}, ['Morosità', 'Arretrati', 'Quota ordinaria', 'Utenze', 'Spese extra', 'Altro'].map(function (c) { var o = h('option', { text: c }); o.value = c; if (c === cat) o.selected = true; return o; }));
         var imp = h('input', { type: 'text', inputmode: 'decimal', placeholder: 'importo €' });
         var mesi = h('input', { type: 'text', placeholder: 'mesi: es. 2026-09 2026-10' });
-        function vediMesi() { mesi.style.display = sel.value === 'Quota ordinaria' ? '' : 'none'; }
-        sel.addEventListener('change', vediMesi); vediMesi();
-        var r = h('div', { class: 'card', style: 'padding:10px;margin:8px 0' }, [h('div', { class: 'row' }, [sel, imp]), mesi]);
+        var anteprima = h('p', { class: 'mut', style: 'margin:6px 0 0' });
+        function vediMesi() { mesi.style.display = sel.value === 'Quota ordinaria' ? '' : 'none'; mostraDivisione(); }
+        function mostraDivisione() {
+          anteprima.textContent = '';
+          if (sel.value !== 'Morosità') return;
+          var importo = imp.value.trim() ? n(imp.value) : (righe.children.length <= 1 ? n(totale.value) : 0);
+          if (!(importo > 0)) { anteprima.textContent = 'Morosità: il programma divide l\'importo sui debiti, dal più vecchio (arretrati, quote scadute, utenze, straordinarie).'; return; }
+          anteprima.textContent = 'Calcolo della divisione…';
+          chiama({ azione: 'direttivo_ripartizione', interno: interno, importo: importo }).then(function (j) {
+            anteprima.textContent = j && j.ok ? 'Verrà diviso così: ' + j.testo : (j && j.errore) || 'Divisione non disponibile.';
+          }).catch(function (e) { anteprima.textContent = e.message; });
+        }
+        sel.addEventListener('change', vediMesi); imp.addEventListener('change', mostraDivisione); totale.addEventListener('change', mostraDivisione); vediMesi();
+        var r = h('div', { class: 'card', style: 'padding:10px;margin:8px 0' }, [h('div', { class: 'row' }, [sel, imp]), mesi, anteprima]);
         r._c = { sel: sel, imp: imp, mesi: mesi };
         righe.appendChild(r);
       }
-      nuovaVoce('Arretrati');
+      nuovaVoce('Morosità');
       var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () {
         var f = fIn.files[0]; if (!f) return; svuota(statoFile); statoFile.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Leggo il file…']));
         leggiFile(f).then(function (x) { file = x; svuota(statoFile); statoFile.appendChild(msg('ok', '📎 ' + x.nome)); }).catch(function (e) { svuota(statoFile); statoFile.appendChild(msg('err', e.message)); });
       } });
-      var n = function (t) { return Number(String(t || '').trim().replace(/\./g, '').replace(',', '.')); };
       var btn = h('button', { class: 'pri big', type: 'button', style: 'margin-top:14px', text: 'Registra il pagamento', onclick: function () { salva(false); } });
       function salva(forza) {
         svuota(esito);
@@ -1135,7 +1149,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
         h('label', { text: 'Data del pagamento' }), data,
         h('label', { text: 'Importo totale €' }), totale,
         h('label', { text: 'Voci (a cosa serve il pagamento)' }),
-        h('p', { class: 'mut', style: 'margin:2px 0', text: 'Arretrati = debiti fino al 2025 e debiti del vecchio socio. Quota ordinaria = mesi (scrivili, es. 2026-09 2026-10). Utenze e Spese extra come al solito.' }),
+        h('p', { class: 'mut', style: 'margin:2px 0', text: 'Morosità = il programma divide da solo il pagamento su tutto quello che manca (arretrati, quote scadute, utenze, straordinarie). Arretrati = solo debiti fino al 2025 e debiti del vecchio socio (usalo se paga il vecchio socio al subentro). Quota ordinaria = mesi (scrivili, es. 2026-09 2026-10). Utenze e Spese extra come al solito.' }),
         righe,
         h('button', { type: 'button', class: 'piccolo', text: '+ Aggiungi voce', onclick: function () { nuovaVoce('Quota ordinaria'); } }),
         h('label', { text: 'Note' }), note,
