@@ -993,7 +993,8 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
   // ================================================================ estratti conto
   function creaEstratto(dati, box) {
     svuota(box); box.appendChild(h('p', {}, [h('span', { class: 'spin' }), dati.tutti ? 'Preparo il PDF di tutti i soci: può richiedere uno o due minuti…' : 'Preparo il PDF…']));
-    chiama(Object.assign({ azione: 'direttivo_estratto' }, dati)).then(function (j) {
+    var alE = dataEstratto && dataEstratto.value && dataEstratto.value < oggiIso() ? dataEstratto.value : '';
+    chiama(Object.assign({ azione: 'direttivo_estratto', al: alE }, dati)).then(function (j) {
       svuota(box);
       if (!j.ok) { box.appendChild(msg('err', j.errore || 'Errore.')); return; }
       box.appendChild(msg('ok', '📄 ' + j.nome + (dati.tutti ? ' – ' + j.soci + ' soci, ' + j.daVersare + ' con importi da versare' : '')));
@@ -1002,15 +1003,24 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     }).catch(function (e) { svuota(box); box.appendChild(msg('err', e.message)); });
   }
 
+  var dataEstratto = null;
   function vistaEstratti() {
     svuota(app); app.appendChild(caricamento('Carico gli interni…'));
     chiama({ azione: 'direttivo_elenco' }).then(function (j) {
       svuota(app); app.appendChild(indietro(vistaMenu));
       if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
       var boxTutti = h('div');
+      dataEstratto = h('input', { type: 'date', value: oggiIso(), max: oggiIso() });
+      var scorciatoie = h('div', { class: 'chips' });
+      var annoOra = new Date().getFullYear();
+      [['Oggi', oggiIso()], ['31/12/' + (annoOra - 1), (annoOra - 1) + '-12-31']].concat(annoOra - 2 >= 2025 ? [['31/12/' + (annoOra - 2), (annoOra - 2) + '-12-31']] : []).forEach(function (c) {
+        scorciatoie.appendChild(h('button', { type: 'button', class: 'chip', text: c[0], onclick: function () { dataEstratto.value = c[1]; } }));
+      });
       app.appendChild(h('div', { class: 'card' }, [
         h('h2', { text: 'Estratti conto' }),
-        h('p', { class: 'mut', text: 'Per ogni socio: arretrati fino al 2025, quote scadute, utenze e spese straordinarie, con a debito, versato e residuo. Il totale è lo stesso della scheda morosi.' }),
+        h('p', { class: 'mut', text: 'Per ogni socio: arretrati fino al 2025, quote scadute, utenze e spese straordinarie, con a debito, versato e residuo. Alla data di oggi il totale è lo stesso della scheda morosi.' }),
+        h('label', { text: 'Situazione alla data' }), dataEstratto, scorciatoie,
+        h('p', { class: 'mut', style: 'margin-top:4px', text: 'Con una data passata contano solo i versamenti fatti fino a quel giorno, le rate scadute a quel giorno e le utenze dei periodi già chiusi.' }),
         h('button', { type: 'button', class: 'pri big', text: '📄 Crea il PDF di tutti i soci', onclick: function () { creaEstratto({ tutti: true }, boxTutti); } }), boxTutti]));
       var cerca = h('input', { type: 'search', placeholder: 'Cerca interno, lotto o nome' }), lista = h('div', { class: 'lista' });
       function riempi() {
