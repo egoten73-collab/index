@@ -1428,7 +1428,7 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
       cu.appendChild(h('h3', { style: 'margin:16px 0 6px;font-size:15px', text: 'Letture e consumi per anno' }));
       UA.forEach(function (y, i) {
         var corpo = h('div');
-        if (!y.periodi.length) corpo.appendChild(h('p', { class: 'mut', text: 'Nessun consumo addebitato in questo anno.' }));
+        if (!y.periodi.length && !y.manuale) corpo.appendChild(h('p', { class: 'mut', text: 'Nessun consumo addebitato in questo anno.' }));
         y.periodi.forEach(function (p) {
           var un = p.tipo === 'acqua' ? 'm³' : 'kWh';
           var letture = (p.letDal !== null && p.letDal !== undefined ? numIt(p.letDal) : '?') + ' → ' + (p.letAl !== null && p.letAl !== undefined ? numIt(p.letAl) : '?');
@@ -1443,7 +1443,8 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
         });
         var tt = h('table', { class: 'sit', style: 'margin-top:6px' });
         if (y.riporto) tt.appendChild(riga('Dagli anni precedenti', '€ ' + numIt(y.riporto, 2)));
-        tt.appendChild(riga('Consumi ' + y.anno + (y.conguagli ? ' (con conguagli)' : ''), '€ ' + numIt(y.acqua + y.luce + (y.conguagli || 0), 2)));
+        if (y.acqua || y.luce || y.conguagli || !y.manuale) tt.appendChild(riga('Consumi ' + y.anno + (y.conguagli ? ' (con conguagli)' : ''), '€ ' + numIt(y.acqua + y.luce + (y.conguagli || 0), 2)));
+        if (y.manuale) tt.appendChild(riga('Utenze ' + y.anno + ' (importo registrato dal direttivo)', '€ ' + numIt(y.manuale, 2)));
         tt.appendChild(riga('Versato nel ' + y.anno, '€ ' + numIt(y.versato, 2)));
         tt.appendChild(riga(y.saldo > 0.5 ? 'Restava da versare' : y.saldo < -0.5 ? 'A tuo credito' : 'Saldo', '€ ' + numIt(Math.abs(y.saldo), 2), 'tot'));
         corpo.appendChild(tt);
