@@ -1353,6 +1353,7 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
             ' ' + s.data + (s.fornitore ? ' · ' + s.fornitore : '') + (straord ? ' · ' + euro(s.quota) + ' × ' + s.nInterni + ' interni' : '') + (s.note ? ' · ' + s.note : '')
           ]),
           h('div', { class: 'row' }, [
+            straord ? h('button', { type: 'button', class: 'piccolo', text: '👥 Chi ha pagato', onclick: function () { vistaStatoSpesa(s.id, j.anno); } }) : null,
             s.ricevuta ? h('a', { href: s.ricevuta, target: '_blank', rel: 'noopener', class: 'link-foto', text: '📄 Ricevuta' }) : null,
             bolletta ? h('span', { class: 'mut', text: 'da Bollette' }) : h('button', { type: 'button', class: 'piccolo', text: 'Elimina', onclick: function () {
               if (!confirm('Eliminare "' + s.descrizione + '"?' + (straord ? ' Verrà tolta anche la quota addebitata ai soci.' : ''))) return;
@@ -1375,10 +1376,19 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     var note = h('input', { type: 'text', placeholder: 'Facoltativo' });
     var quota = h('p', { class: 'mut' }), statoF = h('div'), esito = h('div');
     function n(x) { return Number(String(x).replace(/\./g, '').replace(',', '.')); }
-    imp.addEventListener('input', function () {
-      var a = n(imp.value);
-      quota.textContent = straord && a > 0 && interniAttuali ? 'Quota per interno: ' + euro(Math.round(a / interniAttuali * 100) / 100) + ' (diviso in parti uguali tra ' + interniAttuali + ' interni)' : '';
-    });
+    // straordinaria: quota per interno (oppure importo totale da dividere) e quali interni
+    var modo = h('select', {}, [h('option', { value: 'quota', text: 'Quota per ogni interno' }), h('option', { value: 'totale', text: 'Importo totale da dividere' })]);
+    var chiTutti = h('input', { type: 'radio', name: 'chi', checked: true }), chiAlcuni = h('input', { type: 'radio', name: 'chi' });
+    var elencoInt = h('input', { type: 'text', placeholder: 'es. 12, 15, 60', style: 'display:none' });
+    function nInterni() { return chiAlcuni.checked ? elencoInt.value.split(/[,;\s]+/).filter(function (x) { return /\d/.test(x); }).length : interniAttuali; }
+    function aggiornaQuota() {
+      var a = n(imp.value), ni = nInterni();
+      if (!straord || !(a > 0) || !ni) { quota.textContent = ''; return; }
+      quota.textContent = modo.value === 'quota' ? euro(a) + ' per ognuno dei ' + ni + ' interni = ' + euro(Math.round(a * ni * 100) / 100) + ' in tutto'
+        : 'Quota per interno: ' + euro(Math.round(a / ni * 100) / 100) + ' (diviso tra ' + ni + ' interni)';
+    }
+    imp.addEventListener('input', aggiornaQuota); modo.addEventListener('change', aggiornaQuota); elencoInt.addEventListener('input', aggiornaQuota);
+    [chiTutti, chiAlcuni].forEach(function (r) { r.addEventListener('change', function () { elencoInt.style.display = chiAlcuni.checked ? '' : 'none'; aggiornaQuota(); }); });
     var fIn = h('input', { type: 'file', accept: 'application/pdf,image/*', class: 'hide', onchange: function () {
       if (!fIn.files[0]) return;
       svuota(statoF); statoF.appendChild(h('p', {}, [h('span', { class: 'spin' }), 'Preparo il file…']));
@@ -1389,26 +1399,66 @@ input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:n
     function salva() {
       svuota(esito);
       if (!data.value || !descr.value.trim() || !(n(imp.value) > 0)) { esito.appendChild(msg('err', 'Compila data, descrizione e importo.')); return; }
-      if (straord && !confirm('La spesa verrà divisa tra tutti gli interni e comparirà nella situazione di ogni socio. Confermi?')) return;
+      if (straord && chiAlcuni.checked && !nInterni()) { esito.appendChild(msg('err', 'Scrivi gli interni (es. 12, 15, 60).')); return; }
+      var vecchia = Number(data.value.slice(0, 4)) < 2026;
+      if (straord && !confirm(vecchia ? 'Spesa chiesta prima del 2026: il programma la confronta con i solleciti dell\'amministratore (pagata se non la dava da pagare; se era nei solleciti il debito resta negli arretrati). Confermi?'
+        : 'La spesa verrà addebitata ' + (chiAlcuni.checked ? 'agli interni ' + elencoInt.value : 'a tutti gli interni') + ' e comparirà nella loro situazione. Confermi?')) return;
       btn.disabled = true; btn.textContent = 'Salvataggio…';
-      chiama({ azione: 'direttivo_spesa_salva', tipo: tipo, data: data.value, descrizione: descr.value.trim(), fornitore: forn.value.trim(), importo: n(imp.value), note: note.value,
+      var quotaInt = straord && modo.value === 'quota' ? n(imp.value) : 0;
+      chiama({ azione: 'direttivo_spesa_salva', tipo: tipo, data: data.value, descrizione: descr.value.trim(), fornitore: forn.value.trim(), importo: quotaInt ? 0 : n(imp.value), quota: quotaInt,
+        interni: straord && chiAlcuni.checked ? elencoInt.value : 'tutti', note: note.value,
         file_base64: file ? file.base64 : '', file_mime: file ? file.mime : '', file_nome: file ? file.nome : '' }).then(function (j) {
         btn.disabled = false; btn.textContent = 'Salva la spesa';
         if (!j.ok) { esito.appendChild(msg('err', j.errore || 'Errore')); return; }
         svuota(app); app.appendChild(indietro(function () { vistaSpese(); }));
         app.appendChild(h('div', { class: 'card successo' }, [h('h2', { text: 'Spesa registrata' }),
-          straord ? h('p', { text: 'Addebitati ' + euro(j.quota) + ' a ciascuno dei ' + j.nInterni + ' interni. I soci la vedono nella loro situazione e la pagano con la causale "Spese extra".' }) : h('p', { text: 'Spesa ordinaria registrata.' }),
+          straord ? h('p', { text: 'Quota di ' + euro(j.quota) + ' per ciascuno dei ' + j.nInterni + ' interni. I soci la vedono nella loro situazione e la pagano con la causale "Spese extra".' }) : h('p', { text: 'Spesa ordinaria registrata.' }),
+          straord ? h('button', { class: 'big', type: 'button', text: '👥 Vedi chi ha pagato', onclick: function () { vistaStatoSpesa(j.id); } }) : null,
           h('button', { class: 'pri big', type: 'button', text: 'Torna alle spese', onclick: function () { vistaSpese(); } })]));
       }).catch(function (e) { btn.disabled = false; btn.textContent = 'Salva la spesa'; esito.appendChild(msg('err', e.message)); });
     }
     app.appendChild(h('div', { class: 'card' }, [
       h('h2', { text: straord ? 'Spesa straordinaria' : 'Spesa ordinaria' }),
-      h('p', { class: 'mut', text: straord ? 'Viene divisa in parti uguali tra tutti gli interni e addebitata a ogni socio.' : 'Già coperta dalla quota mensile: viene solo registrata.' }),
-      h('label', { text: 'Data' }), data, h('label', { text: 'Descrizione' }), descr, h('label', { text: 'Fornitore' }), forn,
-      h('label', { text: 'Importo totale (€)' }), imp, quota,
+      h('p', { class: 'mut', text: straord ? 'Viene addebitata agli interni (tutti o solo alcuni). Per le spese chieste prima del 2026 il programma guarda i solleciti dell\'amministratore: chi non la doveva risulta in regola.' : 'Già coperta dalla quota mensile: viene solo registrata.' }),
+      h('label', { text: straord ? 'Data della richiesta ai soci' : 'Data' }), data, h('label', { text: 'Descrizione' }), descr, h('label', { text: 'Fornitore' }), forn,
+      straord ? h('label', { text: 'Come indichi l\'importo' }) : null, straord ? modo : null,
+      h('label', { text: straord ? 'Importo (€)' : 'Importo totale (€)' }), imp,
+      straord ? h('label', { text: 'Interni' }) : null,
+      straord ? h('label', { class: 'scelta', style: 'display:flex!important' }, [chiTutti, ' Tutti gli interni']) : null,
+      straord ? h('label', { class: 'scelta', style: 'display:flex!important' }, [chiAlcuni, ' Solo alcuni interni']) : null,
+      straord ? elencoInt : null, quota,
       h('button', { class: 'big', type: 'button', style: 'margin-top:12px', text: '📎 Allega ricevuta o fattura (foto o PDF)', onclick: function () { fIn.click(); } }), fIn, statoF,
       h('label', { text: 'Note' }), note, esito, btn]));
     if (!interniAttuali) chiama({ azione: 'direttivo_spese' }).then(function (j) { if (j.ok) interniAttuali = j.interniAttuali; }).catch(function () { /* ok */ });
+  }
+
+  // Chi ha pagato una spesa straordinaria, interno per interno
+  function vistaStatoSpesa(id, anno) {
+    svuota(app); app.appendChild(caricamento('Controllo i pagamenti…'));
+    chiama({ azione: 'direttivo_spesa_stato', id: id }).then(function (j) {
+      svuota(app); app.appendChild(indietro(function () { vistaSpese(anno); }));
+      if (!j.ok) { app.appendChild(h('div', { class: 'card' }, [msg('err', j.errore)])); return; }
+      var filtro = 'tutti', corpo = h('div');
+      function disegna() {
+        svuota(corpo);
+        var t = h('table', { class: 'sit' });
+        j.righe.filter(function (r) { return filtro === 'tutti' || (filtro === 'si') === r.pagata; }).forEach(function (r) {
+          t.appendChild(h('tr', {}, [h('td', { text: 'Int. ' + r.interno + ' – ' + r.socio }),
+            h('td', { style: 'text-align:right' }, [h('span', { class: 'stato ' + (r.pagata ? 'ok' : 'err'), style: 'white-space:normal;display:inline-block;max-width:170px;text-align:center', text: (r.pagata ? '✅ ' : '❌ ') + r.stato }),
+              r.versato ? h('div', { class: 'mut', text: 'versato ' + euro(r.versato) }) : null])]));
+        });
+        corpo.appendChild(t);
+      }
+      var chips = h('div', { class: 'chips' });
+      [['tutti', 'Tutti (' + j.righe.length + ')'], ['si', 'Pagato (' + j.pagate + ')'], ['no', 'Da pagare (' + j.daPagare + ')']].forEach(function (c) {
+        chips.appendChild(h('button', { type: 'button', class: 'chip' + (filtro === c[0] ? ' on' : ''), text: c[1], onclick: function () {
+          filtro = c[0]; [].slice.call(chips.children).forEach(function (b) { b.classList.remove('on'); }); this.classList.add('on'); disegna(); } }));
+      });
+      app.appendChild(h('div', { class: 'card' }, [h('h2', { text: j.spesa.descrizione }),
+        h('p', { class: 'mut', text: 'Richiesta il ' + j.spesa.data + ' · ' + euro(j.spesa.quota) + ' per interno' + (j.spesa.vecchia ? ' · confrontata con i solleciti dell\'amministratore' : '') }),
+        chips, corpo]));
+      disegna();
+    }).catch(function (e) { svuota(app); app.appendChild(indietro(function () { vistaSpese(anno); })); app.appendChild(h('div', { class: 'card' }, [msg('err', e.message)])); });
   }
 
   // ================================================================ situazione di tutti i soci

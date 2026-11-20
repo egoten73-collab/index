@@ -1511,11 +1511,14 @@ button.mq{font:inherit;cursor:pointer;width:100%;background:none}
     if (j.straordinarie) {
       var S = j.straordinarie, sa = Number(S.saldo) || 0;
       var ts = h('table', { class: 'sit' });
-      S.voci.forEach(function (x) { ts.appendChild(riga(x.descrizione + ' (' + x.data + ')', '€ ' + numIt(x.quota, 2))); });
-      ts.appendChild(riga('Già versato', '€ ' + numIt(S.versato, 2)));
+      S.voci.forEach(function (x) {
+        var ok = /^pagata/.test(x.stato || '');
+        ts.appendChild(riga(x.descrizione + ' (' + x.data + ')' + (x.stato ? ' – ' + (ok ? '✅ ' : '❌ ') + x.stato : ''), '€ ' + numIt(x.quota, 2)));
+      });
+      if (Number(S.versato)) ts.appendChild(riga('Versato sulle spese da pagare', '€ ' + numIt(S.versato, 2)));
       ts.appendChild(riga(sa > 0.5 ? 'Da versare' : sa < -0.5 ? 'A tuo credito' : 'Saldo', '€ ' + numIt(Math.abs(sa), 2), 'tot'));
       app.appendChild(h('div', { class: 'card' }, [h('h2', { text: 'Spese straordinarie' }),
-        h('p', { class: 'mut', style: 'margin-top:0', text: 'Spese divise in parti uguali tra tutti gli interni. Per pagarle usa la causale "Spese extra".' }), ts]));
+        h('p', { class: 'mut', style: 'margin-top:0', text: 'Spese divise tra gli interni. Per pagarle usa la causale "Spese extra". Le spese chieste prima del 2026 risultano pagate se l\'amministratore non le dava da pagare; se erano nei solleciti, il debito è negli arretrati.' }), ts]));
     }
 
     var L = j.letture || {}, cl = h('div', { class: 'card' }, [h('h2', { text: 'Ultime letture' })]);
